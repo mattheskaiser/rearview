@@ -4,9 +4,9 @@
 // - `journalDate` is the user-facing date the entry is ABOUT and is stored
 //   explicitly as a DATE. It is distinct from `createdAt` (row insertion time).
 //   Journal chronology must never be derived from `createdAt`.
-// - One journal entry per calendar date: `journalDate` is unique. This matches
-//   the Overview activity map (binary "entry exists on this date?") and the
-//   single-result `getEntryByDate` access pattern.
+// - One journal entry per calendar date PER USER: `@@unique([userId, journalDate])`.
+//   This matches the Overview activity map (binary "entry exists on this date?")
+//   and the single-result `getEntryByDate` access pattern.
 // - Rich text is stored as TipTap document JSON in `content`. `contentText` is
 //   the deterministically extracted plain text used for search and embeddings,
 //   so retrieval never has to parse presentation markup.
@@ -16,6 +16,13 @@
 //   regenerates its chunk set instead of leaving stale embeddings behind.
 // - Embeddings live only in `EntryChunk` and are never selected into any
 //   client-facing payload.
+//
+// Ownership (auth phase): every private record belongs to a `User`. Journal
+// chunks / memory-entries are owned indirectly through their parent. `userId`
+// is nullable only as a transient state for the auth migration — the first
+// account adopts every pre-auth row, then a follow-up migration sets NOT NULL.
+// Auth tables (`User`/`Session`/`Account`/`Verification`) are managed by Better
+// Auth; their shape matches better-auth 1.7.x (`Account.issuer` included).
 
 generator client {
   provider        = "prisma-client-js"
@@ -31,16 +38,23 @@ datasource db {
 
 model JournalEntry {
   id          String   @id @default(cuid())
-  journalDate DateTime @unique @db.Date
+  journalDate DateTime @db.Date
   content     Json
   contentText String
   contentHash String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Owning user. Nullable only during the auth migration (see header note).
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   chunks        EntryChunk[]
   memoryEntries MemoryEntry[]
-  // `journalDate` is @unique, which already provides the lookup index.
+
+  // One entry per calendar date PER USER (was globally unique pre-auth).
+  @@unique([userId, journalDate])
+  @@index([userId])
 }
 
 model EntryChunk {
@@ -51,10 +65,10 @@ model EntryChunk {
   // Hash of the parent entry's `contentText` this chunk was derived from.
   // When it no longer matches `JournalEntry.contentHash`, the chunk is stale.
   sourceHash String
-  // pgvector column. Dimension MUST match OLLAMA_EMBEDDING_DIMENSIONS (768 for
-  // nomic-embed-text). Nullable: a chunk row is written first and embedded
+  // pgvector column. Dimension MUST match EMBEDDING_DIMENSIONS (1024 for
+  // bge-m3). Nullable: a chunk row is written first and embedded
   // asynchronously, so a failed embedding never corrupts the journal entry.
-  embedding  Unsupported("vector(768)")?
+  embedding  Unsupported("vector(1024)")?
   model      String?
   createdAt  DateTime                    @default(now())
   embeddedAt DateTime?
@@ -71,7 +85,13 @@ model Memory {
   answer    String
   createdAt DateTime @default(now())
 
+  // Owning user. Nullable only during the auth migration (see header note).
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   entries MemoryEntry[]
+
+  @@index([userId])
 }
 
 model MemoryEntry {
@@ -90,8 +110,88 @@ model MemoryEntry {
 }
 
 model CurrentGoals {
-  // Single-row model: always read/written at the fixed id "singleton".
-  id        String   @id @default("singleton")
+  // One row per user (was a global singleton at id "singleton" pre-auth; that
+  // row is adopted by the first account during the auth migration).
+  id        String   @id @default(cuid())
+  // Rich text as TipTap document JSON — same editor as journal entries.
+  // `{}` is the "not yet written" sentinel. `text` is the deterministically
+  // extracted plain text, kept for parity with JournalEntry.
+  content   Json     @default("{}")
   text      String   @default("")
   updatedAt DateTime @updatedAt
+
+  // Owning user. Nullable only during the auth migration (see header note).
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth tables. Shape matches better-auth 1.7.x — do not edit field names
+// by hand. `Account.password` (credential hash) is never selected by app code;
+// `Account.issuer` scopes account identity (1.7 change).
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+
+  journalEntries JournalEntry[]
+  memories       Memory[]
+  currentGoals   CurrentGoals?
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id
+  issuer                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([issuer, accountId])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }

@@ -20,15 +20,39 @@ const envSchema = z.object({
   // Neon PostgreSQL — direct connection, used by Prisma migrations.
   DIRECT_URL: z.string().min(1),
 
+  // Better Auth — session signing secret. Generate with `openssl rand -base64 32`.
+  // Never committed; required in every environment.
+  BETTER_AUTH_SECRET: z.string().min(32),
+  // Canonical origin the app is served from. Drives cookie security (an https
+  // value turns on Secure cookies) and CSRF trusted origins.
+  BETTER_AUTH_URL: z.url().default("http://localhost:3000"),
+  // Registration is closed once the first account exists. Set to "true" only to
+  // deliberately re-open sign-up (e.g. to add a second account).
+  AUTH_ALLOW_REGISTRATION: z
+    .string()
+    .optional()
+    .transform((value) => value === "true"),
+
   // Name used in the Overview greeting. Optional — the greeting falls back to a
   // plain "Hello" when unset. Configuration, not example content.
   REARVIEW_USER_NAME: z.string().trim().min(1).optional(),
 
-  // Ollama — local, server side only.
+  // Ollama — local, server side only. All AI (generation + embeddings) runs
+  // through this one base URL; journal content never leaves it.
   OLLAMA_BASE_URL: z.url().default("http://localhost:11434"),
+  // Text-generation model used for synthesis. Must understand German, English
+  // and Spanish (see docs/AI notes). Configuration, never hardcoded.
   OLLAMA_GENERATION_MODEL: z.string().min(1),
-  OLLAMA_EMBEDDING_MODEL: z.string().min(1),
-  OLLAMA_EMBEDDING_DIMENSIONS: z.coerce.number().int().positive(),
+  // Embedding model. `bge-m3` — multilingual, 1024-dimensional. Swapping this
+  // for a model with a different dimensionality requires a matching
+  // `EMBEDDING_DIMENSIONS` value, a schema migration for the `vector(N)` column,
+  // and a full re-embed of every chunk.
+  EMBEDDING_MODEL: z.string().min(1),
+  // Dimensionality the embedding model emits. Verified against every vector
+  // Ollama returns before it can reach the `vector(N)` column, so a mismatch
+  // fails loudly instead of corrupting storage. Must equal the schema's
+  // `vector(N)`.
+  EMBEDDING_DIMENSIONS: z.coerce.number().int().positive(),
 });
 
 export type Env = z.infer<typeof envSchema>;
