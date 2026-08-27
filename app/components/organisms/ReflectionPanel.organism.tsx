@@ -1,38 +1,52 @@
 "use client";
 import { FormMessage } from "@/app/components/atoms/FormMessage.atom";
-import { Spinner } from "@/app/components/atoms/Spinner.atom";
-import { AnswerPanel } from "@/app/components/organisms/AnswerPanel.organism";
-import { EvidenceList } from "@/app/components/organisms/EvidenceList.organism";
 import { QuestionInput } from "@/app/components/molecules/QuestionInput.molecule";
-import { useReflection } from "@/app/hooks/useReflection";
+import { AnswerPanel } from "@/app/components/organisms/AnswerPanel.organism";
+import { EvidenceCards } from "@/app/components/organisms/EvidenceCards.organism";
+import { useReflectionStream } from "@/app/hooks/useReflectionStream";
 
 /**
- * Ask the journal a question and, optionally, keep the answer as a Memory. The
- * answer is explicitly AI-generated; the evidence chips point back to the
- * authoritative journal entries.
+ * Ask the journal a question. Retrieval runs first and its entries render as
+ * cards; the AI answer then streams in below, with a Stop button. Evidence
+ * points back to the authoritative journal entries.
  */
 export const ReflectionPanel = () => {
-  const { reflection, error, saveStatus, asking, saving, ask, save } =
-    useReflection();
+  const r = useReflectionStream();
+  const showPanel = r.evidence.length > 0 || r.answer.length > 0 || r.streaming;
 
   return (
     <section className="flex flex-col gap-4">
-      <QuestionInput onAsk={ask} pending={asking} />
+      <QuestionInput onAsk={r.ask} pending={r.streaming} />
 
-      {asking ? <Spinner /> : null}
-      {error ? <FormMessage tone="error">{error}</FormMessage> : null}
+      {r.error && !showPanel ? (
+        <FormMessage tone="error">{r.error}</FormMessage>
+      ) : null}
 
-      {reflection ? (
+      {showPanel ? (
         <div className="flex flex-col gap-4">
           <AnswerPanel
-            answer={reflection.answer}
-            onSaveAsMemory={save}
-            saving={saving}
+            answer={r.answer}
+            phase={r.phase}
+            error={r.error}
+            canStop={r.canStop}
+            canSave={r.canSave}
+            canRegenerate={r.canRegenerate}
+            saving={r.saving}
+            onStop={r.stop}
+            onSave={r.save}
+            onRegenerate={r.regenerate}
           />
-          {saveStatus ? (
-            <FormMessage tone={saveStatus.tone}>{saveStatus.text}</FormMessage>
+          {r.saveStatus ? (
+            <FormMessage tone={r.saveStatus.tone}>
+              {r.saveStatus.text}
+            </FormMessage>
           ) : null}
-          <EvidenceList evidence={reflection.evidence} />
+          <EvidenceCards
+            evidence={r.evidence}
+            onShowMore={r.showMore}
+            canShowMore={r.canShowMore}
+            loadingMore={r.moreLoading}
+          />
         </div>
       ) : null}
     </section>

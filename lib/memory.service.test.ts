@@ -13,8 +13,6 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-const retrieval = vi.hoisted(() => ({ retrieve: vi.fn() }));
-const answer = vi.hoisted(() => ({ generateAnswer: vi.fn() }));
 const memoryDb = vi.hoisted(() => ({
   createMemory: vi.fn(),
   listMemories: vi.fn(),
@@ -22,13 +20,10 @@ const memoryDb = vi.hoisted(() => ({
 }));
 const journalDb = vi.hoisted(() => ({ getEntriesByDates: vi.fn() }));
 
-vi.mock("@/lib/retrieval.service", () => retrieval);
-vi.mock("@/lib/ai/answer.service", () => answer);
 vi.mock("@/lib/db/memory", () => memoryDb);
 vi.mock("@/lib/db/journal", () => journalDb);
 
 import {
-  askJournal,
   listSavedMemories,
   removeMemory,
   saveMemory,
@@ -36,87 +31,9 @@ import {
 
 const USER = "user-1";
 const utc = (date: string) => new Date(`${date}T00:00:00.000Z`);
-const chunk = (entryId: string, journalDate: string, text: string) => ({
-  entryId,
-  journalDate,
-  chunkIndex: 0,
-  text,
-  similarity: 0.9,
-});
 
 beforeEach(() => {
   vi.clearAllMocks();
-});
-
-describe("askJournal", () => {
-  it("rejects an empty question without retrieving anything", async () => {
-    const result = await askJournal(USER, "   ");
-
-    expect(result.ok).toBe(false);
-    expect(retrieval.retrieve).not.toHaveBeenCalled();
-  });
-
-  it("returns an empty-results state when nothing was retrieved", async () => {
-    retrieval.retrieve.mockResolvedValue({ chunks: [], entryDates: [] });
-
-    const result = await askJournal(USER, "what did I learn?");
-
-    expect(result).toEqual({
-      ok: false,
-      error: expect.stringContaining("No journal entries"),
-    });
-    expect(answer.generateAnswer).not.toHaveBeenCalled();
-  });
-
-  it("synthesizes from retrieved evidence and returns dated evidence", async () => {
-    retrieval.retrieve.mockResolvedValue({
-      chunks: [
-        chunk("a", "2022-03-04", "uncertain about the role"),
-        chunk("b", "2022-05-19", "wanted more ownership"),
-      ],
-      entryDates: ["2022-03-04", "2022-05-19"],
-    });
-    answer.generateAnswer.mockResolvedValue({
-      ok: true,
-      answer: "You wrestled with growth versus stability.",
-    });
-
-    const result = await askJournal(USER, "career?");
-
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.reflection).toEqual({
-        question: "career?",
-        answer: "You wrestled with growth versus stability.",
-        evidence: [
-          { date: "2022-03-04", label: "Mar 4, 2022" },
-          { date: "2022-05-19", label: "May 19, 2022" },
-        ],
-      });
-    }
-    expect(answer.generateAnswer).toHaveBeenCalledWith("career?", [
-      { journalDate: "2022-03-04", text: "uncertain about the role" },
-      { journalDate: "2022-05-19", text: "wanted more ownership" },
-    ]);
-  });
-
-  it("surfaces an Ollama-down state instead of throwing", async () => {
-    retrieval.retrieve.mockResolvedValue({
-      chunks: [chunk("a", "2022-03-04", "x")],
-      entryDates: ["2022-03-04"],
-    });
-    answer.generateAnswer.mockResolvedValue({
-      ok: false,
-      reason: "ollama-unavailable",
-    });
-
-    const result = await askJournal(USER, "q");
-
-    expect(result).toEqual({
-      ok: false,
-      error: expect.stringContaining("not reachable"),
-    });
-  });
 });
 
 describe("saveMemory", () => {

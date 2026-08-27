@@ -4,25 +4,33 @@ import { revalidatePath } from "next/cache";
 
 import { requireUserId } from "@/lib/auth/session";
 import {
-  askJournal,
   removeMemory,
   saveMemory,
-  type AskResult,
   type DeleteResult,
   type SaveResult,
 } from "@/lib/memory.service";
+import {
+  retrieveEvidence,
+  type RetrieveEvidenceResult,
+} from "@/lib/reflection.service";
 
 /**
  * Server actions behind the Memories page. Each authenticates first, then
- * orchestrates the retrieval / AI / persistence services scoped to the caller —
- * no journal content or embeddings cross to the client beyond the synthesized
- * answer and its dates.
+ * orchestrates the reflection / persistence services scoped to the caller. The
+ * streamed answer itself goes through the `app/api/reflection` Route Handler —
+ * a token feed is cleaner over `fetch` + AbortController than a Server Action.
  */
 
-/** Retrieve the caller's journal evidence and synthesize an answer. Persists nothing. */
-export async function askAction(question: unknown): Promise<AskResult> {
+/**
+ * Retrieval only — no generation. Backs "Show more entries": a larger `limit`
+ * surfaces more distinct entries without re-triggering the answer.
+ */
+export async function retrieveEvidenceAction(
+  question: unknown,
+  limit?: unknown,
+): Promise<RetrieveEvidenceResult> {
   const userId = await requireUserId();
-  return askJournal(userId, question);
+  return retrieveEvidence(userId, question, limit);
 }
 
 export type SaveMemoryActionInput = {
