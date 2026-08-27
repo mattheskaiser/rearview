@@ -15,6 +15,14 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    // Playwright test fixtures take a param literally named `use`; the
+    // react-hooks heuristic mistakes it for the `use` hook.
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
@@ -22,6 +30,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated E2E artifacts (HTML report bundles, traces).
+    "e2e/artifacts/**",
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 
