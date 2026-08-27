@@ -42,8 +42,11 @@ const GENERIC = "Something went wrong. Please try again.";
 const toEvidence = (dates: string[]): Evidence[] =>
   dates.map((date) => ({ date, label: formatJournalDateLabel(date) }));
 
-/** Retrieve journal evidence for a question and synthesize an answer. Persists nothing. */
-export async function askJournal(rawQuestion: unknown): Promise<AskResult> {
+/** Retrieve `userId`'s journal evidence for a question and synthesize an answer. Persists nothing. */
+export async function askJournal(
+  userId: string,
+  rawQuestion: unknown,
+): Promise<AskResult> {
   const parsed = questionSchema.safeParse(rawQuestion);
   if (!parsed.success) {
     return {
@@ -54,7 +57,7 @@ export async function askJournal(rawQuestion: unknown): Promise<AskResult> {
   const question = parsed.data;
 
   try {
-    const { chunks, entryDates } = await retrieve(question);
+    const { chunks, entryDates } = await retrieve(userId, question);
     if (chunks.length === 0) return { ok: false, error: NO_EVIDENCE };
 
     const result = await generateAnswer(
@@ -87,8 +90,11 @@ export async function askJournal(rawQuestion: unknown): Promise<AskResult> {
   }
 }
 
-/** Persist a reflection as a Memory — a dated snapshot, not a live view. */
-export async function saveMemory(rawInput: unknown): Promise<SaveResult> {
+/** Persist a reflection as a Memory for `userId` — a dated snapshot, not a live view. */
+export async function saveMemory(
+  userId: string,
+  rawInput: unknown,
+): Promise<SaveResult> {
   const parsed = saveMemoryInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     return {
@@ -102,11 +108,12 @@ export async function saveMemory(rawInput: unknown): Promise<SaveResult> {
   ];
 
   try {
-    const entries = await getEntriesByDates(dates);
+    const entries = await getEntriesByDates(userId, dates);
     const idByDate = new Map(
       entries.map((entry) => [entry.journalDate.getTime(), entry.id]),
     );
     const memory = await createMemory({
+      userId,
       question,
       answer,
       entries: dates.map((date) => ({
@@ -120,16 +127,20 @@ export async function saveMemory(rawInput: unknown): Promise<SaveResult> {
   }
 }
 
-export async function listSavedMemories(): Promise<SavedMemory[]> {
-  const memories = await listMemories();
+export async function listSavedMemories(userId: string): Promise<SavedMemory[]> {
+  const memories = await listMemories(userId);
   return memories.map(toSavedMemory);
 }
 
-export async function removeMemory(rawId: unknown): Promise<DeleteResult> {
+export async function removeMemory(
+  userId: string,
+  rawId: unknown,
+): Promise<DeleteResult> {
   const parsed = memoryIdSchema.safeParse(rawId);
   if (!parsed.success) return { ok: false, error: "That memory could not be found." };
   try {
-    await deleteMemory(parsed.data);
+    const deleted = await deleteMemory(parsed.data, userId);
+    if (!deleted) return { ok: false, error: "That memory could not be found." };
     return { ok: true };
   } catch {
     return { ok: false, error: GENERIC };

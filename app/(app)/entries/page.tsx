@@ -1,5 +1,6 @@
 import { EntryForm } from "@/app/components/organisms/EntryForm.organism";
 import { PageTemplate } from "@/app/components/templates/Page.template";
+import { requireUserId } from "@/lib/auth/session";
 import { getEntryContentForDate } from "@/lib/journal.service";
 import {
   formatJournalDate,
@@ -29,19 +30,18 @@ export default async function EntriesPage({
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
+  const userId = await requireUserId();
   const { date } = await searchParams;
   const dateStr = resolveDate(date);
-  const initialContent = await getEntryContentForDate(dateStr);
+  const initialContent = await getEntryContentForDate(userId, dateStr);
 
   return (
     <PageTemplate heading="Write an entry">
-      <div className="max-w-2xl">
-        <EntryForm
-          key={dateStr}
-          dateStr={dateStr}
-          initialContent={initialContent}
-        />
-      </div>
+      <EntryForm
+        key={dateStr}
+        dateStr={dateStr}
+        initialContent={initialContent}
+      />
     </PageTemplate>
   );
 }

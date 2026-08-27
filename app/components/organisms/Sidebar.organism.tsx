@@ -2,15 +2,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { LogoutButton } from "@/app/components/molecules/LogoutButton.molecule";
 import { cn } from "@/lib/utils";
 
 type SidebarItem = { label: string; href: string };
 
-export const Sidebar = ({ items }: { items: SidebarItem[] }) => {
+type SidebarProps = {
+  items: SidebarItem[];
+  /** Signed-in account, shown above the sign-out control. */
+  accountEmail?: string;
+};
+
+export const Sidebar = ({ items, accountEmail }: SidebarProps) => {
   const pathname = usePathname();
 
   return (
-    <nav className="w-48 shrink-0 border-r border-border flex flex-col gap-1 p-3">
+    <nav className="flex w-48 shrink-0 flex-col gap-1 border-r border-border p-3">
       <span className="px-2 py-1 text-sm font-semibold tracking-wide">
         Rearview
       </span>
@@ -32,6 +39,15 @@ export const Sidebar = ({ items }: { items: SidebarItem[] }) => {
           </Link>
         );
       })}
+
+      <div className="mt-auto flex flex-col gap-1 pt-3">
+        {accountEmail ? (
+          <span className="truncate px-2 text-xs text-muted-foreground">
+            {accountEmail}
+          </span>
+        ) : null}
+        <LogoutButton />
+      </div>
     </nav>
   );
 };

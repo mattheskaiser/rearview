@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 
-import { askAction, saveMemoryAction } from "@/app/memories/actions";
+import { askAction, saveMemoryAction } from "@/app/(app)/memories/actions";
 import type { Reflection } from "@/lib/types/memory";
 
 type Status = { tone: "success" | "error"; text: string } | null;

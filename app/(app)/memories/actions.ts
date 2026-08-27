@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireUserId } from "@/lib/auth/session";
 import {
   askJournal,
   removeMemory,
@@ -12,14 +13,16 @@ import {
 } from "@/lib/memory.service";
 
 /**
- * Server actions behind the Memories page. They orchestrate the retrieval / AI
- * / persistence services and return plain results — no journal content or
- * embeddings cross to the client beyond the synthesized answer and its dates.
+ * Server actions behind the Memories page. Each authenticates first, then
+ * orchestrates the retrieval / AI / persistence services scoped to the caller —
+ * no journal content or embeddings cross to the client beyond the synthesized
+ * answer and its dates.
  */
 
-/** Retrieve evidence and synthesize an answer. Persists nothing. */
+/** Retrieve the caller's journal evidence and synthesize an answer. Persists nothing. */
 export async function askAction(question: unknown): Promise<AskResult> {
-  return askJournal(question);
+  const userId = await requireUserId();
+  return askJournal(userId, question);
 }
 
 export type SaveMemoryActionInput = {
@@ -32,13 +35,15 @@ export type SaveMemoryActionInput = {
 export async function saveMemoryAction(
   input: SaveMemoryActionInput,
 ): Promise<SaveResult> {
-  const result = await saveMemory(input);
+  const userId = await requireUserId();
+  const result = await saveMemory(userId, input);
   if (result.ok) revalidatePath("/memories");
   return result;
 }
 
 export async function deleteMemoryAction(id: unknown): Promise<DeleteResult> {
-  const result = await removeMemory(id);
+  const userId = await requireUserId();
+  const result = await removeMemory(userId, id);
   if (result.ok) revalidatePath("/memories");
   return result;
 }

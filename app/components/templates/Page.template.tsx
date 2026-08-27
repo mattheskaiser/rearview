@@ -1,11 +1,27 @@
-import { Heading } from "@/app/components/atoms/Heading.atom";
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 
-export const PageTemplate = ({heading, children}: {heading: string; children: ReactNode}) => {
-    return(
-        <div className="p-4 flex flex-col gap-y-4 mx-auto container">
-            <Heading>{heading}</Heading>
-            {children}
-        </div>
-    );
-}
+import { Heading } from "@/app/components/atoms/Heading.atom";
+
+type PageTemplateProps = {
+  heading: string;
+  /** Optional supporting line rendered directly under the heading. */
+  subtitle?: ReactNode;
+  children: ReactNode;
+};
+
+/**
+ * Shared shell for every page inside the app shell. Gives Overview, Entries and
+ * Memories the same centered column: one max width, one set of horizontal
+ * margins, one page padding and one vertical rhythm.
+ */
+export const PageTemplate = ({ heading, subtitle, children }: PageTemplateProps) => {
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-10 p-8">
+      <header className="flex flex-col gap-1">
+        <Heading>{heading}</Heading>
+        {subtitle}
+      </header>
+      {children}
+    </div>
+  );
+};

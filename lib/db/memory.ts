@@ -6,6 +6,9 @@ import { prisma } from "@/lib/db/client";
 
 /**
  * Focused data access for saved Memories. Thin wrappers over Prisma.
+ *
+ * Ownership: every function takes the owning `userId`. A memory is never
+ * reachable by id alone.
  */
 
 export type MemoryEntryRef = {
@@ -16,6 +19,7 @@ export type MemoryEntryRef = {
 };
 
 export type MemoryWriteData = {
+  userId: string;
   question: string;
   answer: string;
   entries: MemoryEntryRef[];
@@ -29,6 +33,7 @@ export function createMemory(data: MemoryWriteData): Promise<MemoryWithEntries> 
   );
   return prisma.memory.create({
     data: {
+      userId: data.userId,
       question: data.question,
       answer: data.answer,
       entries: { create: entries },
@@ -37,13 +42,23 @@ export function createMemory(data: MemoryWriteData): Promise<MemoryWithEntries> 
   });
 }
 
-export function listMemories(): Promise<MemoryWithEntries[]> {
+export function listMemories(userId: string): Promise<MemoryWithEntries[]> {
   return prisma.memory.findMany({
+    where: { userId },
     include: { entries: true },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export function deleteMemory(id: string): Promise<Memory> {
-  return prisma.memory.delete({ where: { id } });
+/**
+ * Delete one memory, scoped to its owner. Returns false when nothing matched
+ * (wrong id, or not this user's memory) so the caller can report not-found
+ * instead of leaking whether the id exists.
+ */
+export async function deleteMemory(
+  id: string,
+  userId: string,
+): Promise<boolean> {
+  const { count } = await prisma.memory.deleteMany({ where: { id, userId } });
+  return count > 0;
 }

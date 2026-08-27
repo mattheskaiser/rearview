@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { EmptyState } from "@/app/components/atoms/EmptyState.atom";
 import { FormMessage } from "@/app/components/atoms/FormMessage.atom";
 import { SavedMemoryCard } from "@/app/components/molecules/SavedMemoryCard.molecule";
-import { deleteMemoryAction } from "@/app/memories/actions";
+import { deleteMemoryAction } from "@/app/(app)/memories/actions";
 import type { SavedMemory } from "@/lib/types/memory";
 
 type MemoryListProps = {
