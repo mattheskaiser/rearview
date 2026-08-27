@@ -69,6 +69,16 @@ export function formatJournalDateLabel(input: string | Date): string {
   });
 }
 
+/** Full-month label for a journal date, e.g. "January 5, 2022". */
+export function formatJournalDateLong(input: string | Date): string {
+  return toJournalDate(input).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 /** True when `date`'s calendar day is strictly after `reference`'s. */
 export function isFutureJournalDate(date: Date, reference: Date = new Date()): boolean {
   return toJournalDate(date).getTime() > toJournalDate(reference).getTime();

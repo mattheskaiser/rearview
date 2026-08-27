@@ -1,28 +1,33 @@
+import type { JSONContent } from "@tiptap/core";
+
 import { GreetingText } from "@/app/components/atoms/GreetingText.atom";
-import { Heading } from "@/app/components/atoms/Heading.atom";
 import { ActivityMap } from "@/app/components/organisms/ActivityMap.organism";
 import { CurrentGoals } from "@/app/components/organisms/CurrentGoals.organism";
+import { PageTemplate } from "@/app/components/templates/Page.template";
+import type { GreetingPeriod } from "@/lib/time/greeting";
 
 type OverviewTemplateProps = {
-  name?: string;
-  goals?: string;
+  name: string;
+  greeting: GreetingPeriod;
+  goalsContent: JSONContent | null;
   entryDates: string[];
+  today: string;
 };
 
 export const OverviewTemplate = ({
   name,
-  goals,
+  greeting,
+  goalsContent,
   entryDates,
+  today,
 }: OverviewTemplateProps) => {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-10 p-8">
-      <header className="flex flex-col gap-1">
-        <Heading>Overview</Heading>
-        <GreetingText name={name} />
-      </header>
-
-      <CurrentGoals initialValue={goals} />
-      <ActivityMap entryDates={entryDates} />
-    </div>
+    <PageTemplate
+      heading="Overview"
+      subtitle={<GreetingText period={greeting} name={name} />}
+    >
+      <CurrentGoals initialContent={goalsContent} />
+      <ActivityMap entryDates={entryDates} today={today} />
+    </PageTemplate>
   );
 };

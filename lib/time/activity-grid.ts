@@ -1,16 +1,31 @@
+/**
+ * GitHub-style *yearly* journal activity calendars.
+ *
+ * The set of years and every date range are derived from the data — the
+ * earliest entry through the latest entry (CLAUDE.md > Overview). Nothing is
+ * hardcoded, so the map grows as entries are added and backfilled.
+ *
+ * All arithmetic is done on UTC timestamps so the grid is timezone-independent;
+ * the caller decides which calendar day is "today" in the host timezone and
+ * passes it in as `today` (`YYYY-MM-DD`).
+ */
+
 export type ActivityDay = {
   /** YYYY-MM-DD */
   date: string;
-  /** Whether this cell falls inside [start, end]; padding cells are false. */
-  inRange: boolean;
+  /** False for padding cells that belong to an adjacent year. */
+  inYear: boolean;
   /** Whether a journal entry exists on this date. */
   filled: boolean;
+  /** Whether this date is after `today` (not yet reachable). */
+  isFuture: boolean;
 };
 
 /** A column in the grid: 7 days, Sunday first. */
 export type ActivityWeek = ActivityDay[];
 
-export type ActivityGrid = {
+export type YearGrid = {
+  year: number;
   weeks: ActivityWeek[];
   /** Column index -> short month name, emitted when the month changes. */
   monthLabels: { column: number; label: string }[];
@@ -22,10 +37,8 @@ const MONTHS = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-/** Parse YYYY-MM-DD as a UTC midnight timestamp (TZ-independent). */
-function toUTC(date: string): number {
-  const [y, m, d] = date.split("-").map(Number);
-  return Date.UTC(y, m - 1, d);
+function yearOf(date: string): number {
+  return Number(date.slice(0, 4));
 }
 
 function format(ts: number): string {
@@ -41,33 +54,46 @@ function startOfWeek(ts: number): number {
 }
 
 /**
- * Builds a GitHub-style contribution grid from a set of entry dates.
- *
- * The range is derived from the data: it spans from the earliest entry date
- * (or `today` when there are no entries) through `today`. Nothing is hardcoded,
- * so the grid keeps growing as new entries are added.
+ * Years that should appear in the activity map, ascending: the earliest entry
+ * year through the latest entry year. Empty when there are no entries — the UI
+ * shows an empty state instead.
  */
-export function buildActivityGrid(
-  entryDates: string[],
-  today: Date = new Date(),
-): ActivityGrid {
-  const filledSet = new Set(entryDates);
-  const endTs = Date.UTC(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate(),
+export function listActivityYears(entryDates: string[]): number[] {
+  if (entryDates.length === 0) return [];
+  const years = entryDates.map(yearOf);
+  const first = Math.min(...years);
+  const last = Math.max(...years);
+  const out: number[] = [];
+  for (let y = first; y <= last; y += 1) out.push(y);
+  return out;
+}
+
+/**
+ * Build one year's contribution calendar. The grid starts on the Sunday on or
+ * before Jan 1 and ends on the Saturday on or after Dec 31, so weeks that
+ * straddle a year boundary keep their padding days (marked `inYear: false`).
+ * Leap years and month lengths fall out of the UTC date math.
+ */
+export function buildYearGrid(
+  year: number,
+  entryDates: Iterable<string>,
+  today: string,
+): YearGrid {
+  const filledSet = entryDates instanceof Set ? entryDates : new Set(entryDates);
+  const todayTs = Date.UTC(
+    yearOf(today),
+    Number(today.slice(5, 7)) - 1,
+    Number(today.slice(8, 10)),
   );
 
-  const startTs = entryDates.length
-    ? Math.min(...entryDates.map(toUTC), endTs)
-    : endTs;
-
-  const gridStart = startOfWeek(startTs);
-  const gridEnd = startOfWeek(endTs) + 6 * DAY_MS;
+  const jan1 = Date.UTC(year, 0, 1);
+  const dec31 = Date.UTC(year, 11, 31);
+  const gridStart = startOfWeek(jan1);
+  const gridEnd = startOfWeek(dec31) + 6 * DAY_MS;
 
   const weeks: ActivityWeek[] = [];
   const monthLabels: { column: number; label: string }[] = [];
-  let previousMonth = -1;
+  let previousLabelMonth = -1;
 
   for (let ts = gridStart, column = 0; ts <= gridEnd; column += 1) {
     const week: ActivityWeek = [];
@@ -75,17 +101,22 @@ export function buildActivityGrid(
       const date = format(ts);
       week.push({
         date,
-        inRange: ts >= startTs && ts <= endTs,
+        inYear: yearOf(date) === year,
         filled: filledSet.has(date),
+        isFuture: ts > todayTs,
       });
     }
-    const firstOfWeekMonth = new Date(week[0].date + "T00:00:00Z").getUTCMonth();
-    if (firstOfWeekMonth !== previousMonth) {
-      monthLabels.push({ column, label: MONTHS[firstOfWeekMonth] });
-      previousMonth = firstOfWeekMonth;
+    // Label a column by the first day of that column's week that is in-year.
+    const anchor = week.find((d) => d.inYear);
+    if (anchor) {
+      const month = Number(anchor.date.slice(5, 7)) - 1;
+      if (month !== previousLabelMonth) {
+        monthLabels.push({ column, label: MONTHS[month] });
+        previousLabelMonth = month;
+      }
     }
     weeks.push(week);
   }
 
-  return { weeks, monthLabels };
+  return { year, weeks, monthLabels };
 }

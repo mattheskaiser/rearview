@@ -1,19 +1,39 @@
-import { ActivityCell } from "@/app/components/molecules/ActivityCell.molecule";
+"use client";
+import { useMemo, useState } from "react";
+
+import { EmptyState } from "@/app/components/atoms/EmptyState.atom";
 import { ActivityLegend } from "@/app/components/molecules/ActivityLegend.molecule";
-import { buildActivityGrid } from "@/lib/time/activity-grid";
+import { YearCalendar } from "@/app/components/molecules/YearCalendar.molecule";
+import { YearNav } from "@/app/components/molecules/YearNav.molecule";
+import { buildYearGrid, listActivityYears } from "@/lib/time/activity-grid";
 
 type ActivityMapProps = {
-  /** Dates with journal entries, as YYYY-MM-DD. */
+  /** Dates with journal entries, as `YYYY-MM-DD`. */
   entryDates: string[];
+  /** Today's calendar day in the host timezone, `YYYY-MM-DD`. */
+  today: string;
 };
 
 /**
- * GitHub-style activity grid. The date range is derived from the data (earliest
- * entry through today), never hardcoded.
+ * Yearly journal activity. The list of years and every date range come from the
+ * data — earliest entry through latest entry (CLAUDE.md > Overview). Selecting a
+ * year immediately swaps in that year's calendar.
  */
-export const ActivityMap = ({ entryDates }: ActivityMapProps) => {
-  const { weeks, monthLabels } = buildActivityGrid(entryDates);
-  const labelByColumn = new Map(monthLabels.map((m) => [m.column, m.label]));
+export const ActivityMap = ({ entryDates, today }: ActivityMapProps) => {
+  const years = useMemo(() => listActivityYears(entryDates), [entryDates]);
+  const [year, setYear] = useState<number | null>(null);
+
+  const selectedYear = year != null && years.includes(year)
+    ? year
+    : years[years.length - 1];
+
+  const grid = useMemo(
+    () =>
+      selectedYear != null
+        ? buildYearGrid(selectedYear, entryDates, today)
+        : null,
+    [selectedYear, entryDates, today],
+  );
 
   return (
     <section className="flex flex-col gap-3">
@@ -24,26 +44,17 @@ export const ActivityMap = ({ entryDates }: ActivityMapProps) => {
         <ActivityLegend />
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="inline-flex flex-col gap-1">
-          <div className="flex gap-1 text-[10px] text-muted-foreground">
-            {weeks.map((_, column) => (
-              <span key={column} className="w-3">
-                {labelByColumn.get(column) ?? ""}
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-1">
-            {weeks.map((week, column) => (
-              <div key={column} className="flex flex-col gap-1">
-                {week.map((day) => (
-                  <ActivityCell key={day.date} day={day} />
-                ))}
-              </div>
-            ))}
-          </div>
+      {grid && selectedYear != null ? (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <YearCalendar grid={grid} />
+          <YearNav years={years} selected={selectedYear} onSelect={setYear} />
         </div>
-      </div>
+      ) : (
+        <EmptyState
+          title="No journal activity yet"
+          description="Write your first entry and it will show up here."
+        />
+      )}
     </section>
   );
 };

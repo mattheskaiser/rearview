@@ -6,7 +6,7 @@ export const ActivityLegend = () => {
         Entry
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="size-3 rounded-[3px] border border-border bg-neutral-200" />
+        <span className="size-3 rounded-[3px] border border-border bg-muted" />
         No entry
       </span>
     </div>

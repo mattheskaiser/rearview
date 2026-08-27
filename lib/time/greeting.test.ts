@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getGreeting } from "@/lib/time/greeting";
+import { getGreeting, getZonedGreeting, periodFromHour } from "@/lib/time/greeting";
 
 const at = (hour: number) => new Date(2026, 0, 1, hour, 30, 0);
 
@@ -28,5 +28,32 @@ describe("getGreeting", () => {
     expect(getGreeting(new Date(2026, 0, 1, 5, 0, 0))).toBe("morning");
     expect(getGreeting(new Date(2026, 0, 1, 12, 0, 0))).toBe("afternoon");
     expect(getGreeting(new Date(2026, 0, 1, 18, 0, 0))).toBe("evening");
+  });
+});
+
+describe("periodFromHour", () => {
+  it("maps hours to periods at the fixed cutoffs", () => {
+    expect(periodFromHour(4)).toBe("evening");
+    expect(periodFromHour(5)).toBe("morning");
+    expect(periodFromHour(11)).toBe("morning");
+    expect(periodFromHour(12)).toBe("afternoon");
+    expect(periodFromHour(17)).toBe("afternoon");
+    expect(periodFromHour(18)).toBe("evening");
+    expect(periodFromHour(23)).toBe("evening");
+  });
+});
+
+describe("getZonedGreeting", () => {
+  // 2026-01-01T20:00Z is 12:00 in Los Angeles (UTC-8) and 21:00 in Berlin.
+  const instant = new Date("2026-01-01T20:00:00Z");
+
+  it("reads the hour in the given timezone", () => {
+    expect(getZonedGreeting(instant, "America/Los_Angeles")).toBe("afternoon");
+    expect(getZonedGreeting(instant, "Europe/Berlin")).toBe("evening");
+    expect(getZonedGreeting(instant, "Asia/Tokyo")).toBe("morning"); // 05:00 next day
+  });
+
+  it("falls back to Pacific Time for an unknown zone", () => {
+    expect(getZonedGreeting(instant, "Not/AZone")).toBe("afternoon");
   });
 });

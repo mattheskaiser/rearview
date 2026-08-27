@@ -1,7 +1,4 @@
-"use client";
-import { useSyncExternalStore } from "react";
-
-import { getGreeting, type GreetingPeriod } from "@/lib/time/greeting";
+import type { GreetingPeriod } from "@/lib/time/greeting";
 
 const LABELS: Record<GreetingPeriod, string> = {
   morning: "Good morning",
@@ -9,27 +6,17 @@ const LABELS: Record<GreetingPeriod, string> = {
   evening: "Good evening",
 };
 
-const subscribe = () => () => {};
+type GreetingTextProps = {
+  /** Resolved server-side against the host machine's timezone. */
+  period: GreetingPeriod;
+  name: string;
+};
 
-type GreetingTextProps = { name?: string };
-
-/**
- * Time-aware greeting. The period is read from the browser clock on the client
- * only (server snapshot is null) to avoid a hydration mismatch.
- */
-export const GreetingText = ({ name }: GreetingTextProps) => {
-  const period = useSyncExternalStore<GreetingPeriod | null>(
-    subscribe,
-    () => getGreeting(new Date()),
-    () => null,
-  );
-
-  const greeting = period ? LABELS[period] : "Hello";
-
+/** Time-aware greeting, e.g. "Good morning, Matthes." */
+export const GreetingText = ({ period, name }: GreetingTextProps) => {
   return (
     <p className="text-lg text-muted-foreground">
-      {greeting}
-      {name ? `, ${name}` : ""}.
+      {LABELS[period]}, {name}.
     </p>
   );
 };

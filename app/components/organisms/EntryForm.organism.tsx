@@ -5,8 +5,8 @@ import { useState, useTransition } from "react";
 
 import { FormMessage } from "@/app/components/atoms/FormMessage.atom";
 import { DatePicker } from "@/app/components/molecules/DatePicker.molecule";
-import { JournalEditor } from "@/app/components/organisms/JournalEditor.organism";
-import { saveEntryAction } from "@/app/entries/actions";
+import { RichTextEditor } from "@/app/components/organisms/RichTextEditor.organism";
+import { saveEntryAction } from "@/app/(app)/entries/actions";
 import { toLocalJournalDateString } from "@/lib/time/journal-date";
 import { Button } from "@/components/ui/button";
 
@@ -62,8 +62,16 @@ export const EntryForm = ({ dateStr, initialContent }: EntryFormProps) => {
         handleSubmit();
       }}
     >
-      <DatePicker value={toLocalDate(dateStr)} onChange={goToDate} />
-      <JournalEditor content={initialContent ?? undefined} onChange={setDoc} />
+      <DatePicker
+        value={toLocalDate(dateStr)}
+        onChange={goToDate}
+        disableAfter={new Date()}
+      />
+      <RichTextEditor
+        content={initialContent ?? undefined}
+        onChange={setDoc}
+        ariaLabel="Journal entry"
+      />
       <div className="flex items-center justify-between gap-4">
         {status ? (
           <FormMessage tone={status.tone}>{status.text}</FormMessage>
