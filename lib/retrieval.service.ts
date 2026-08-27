@@ -1,8 +1,12 @@
 import "server-only";
 
 import { embedText } from "@/lib/ai/embedding.service";
-import { searchChunksByEmbedding, type ChunkMatch } from "@/lib/db/chunks";
-import { formatJournalDate } from "@/lib/time/journal-date";
+import {
+  searchChunksByEmbedding,
+  type ChunkMatch,
+  type DateRange,
+} from "@/lib/db/chunks";
+import { formatJournalDate, toJournalDate } from "@/lib/time/journal-date";
 
 /**
  * Retrieval capability (CLAUDE.md > Retrieval). The Memories page never learns
@@ -34,6 +38,22 @@ export const DEFAULT_RESULT_LIMIT = 6;
 export const CANDIDATE_MULTIPLIER = 4;
 export const MAX_CHUNKS_PER_ENTRY = 2;
 
+export type RetrievalOptions = {
+  /** Max diversified chunks to return. */
+  limit?: number;
+  /** Restrict evidence to journal dates in `[from, to]` (`YYYY-MM-DD`). */
+  dateRange?: { from?: string; to?: string };
+};
+
+/** Convert the string date bounds to midnight-UTC `Date`s, or undefined. */
+function toDateRange(range: RetrievalOptions["dateRange"]): DateRange | undefined {
+  if (!range?.from && !range?.to) return undefined;
+  return {
+    from: range.from ? toJournalDate(range.from) : undefined,
+    to: range.to ? toJournalDate(range.to) : undefined,
+  };
+}
+
 /** Rerank similarity-ordered candidates to spread evidence across entries. */
 export function rerankForDiversity(
   candidates: ChunkMatch[],
@@ -61,14 +81,17 @@ export function rerankForDiversity(
 }
 
 export async function retrieve(
+  userId: string,
   question: string,
-  options: { limit?: number } = {},
+  options: RetrievalOptions = {},
 ): Promise<RetrievalResult> {
   const limit = options.limit ?? DEFAULT_RESULT_LIMIT;
   const embedding = await embedText(question);
   const candidates = await searchChunksByEmbedding(
+    userId,
     embedding,
     limit * CANDIDATE_MULTIPLIER,
+    toDateRange(options.dateRange),
   );
 
   const chunks = rerankForDiversity(candidates, limit).map((match) => ({

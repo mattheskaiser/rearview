@@ -36,20 +36,19 @@ export class OllamaResponseError extends OllamaError {
   }
 }
 
-async function postJson<T>(
+/** Single fetch wrapper: resolves the base URL, enforces a timeout, and maps
+ *  any transport failure to `OllamaUnavailableError`. Shared by the request
+ *  helpers here and by the health probe. */
+export async function ollamaFetch(
   path: string,
-  body: unknown,
+  init: RequestInit,
   timeoutMs: number,
-): Promise<T> {
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  let response: Response;
   try {
-    response = await fetch(new URL(path, env.OLLAMA_BASE_URL), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+    return await fetch(new URL(path, env.OLLAMA_BASE_URL), {
+      ...init,
       signal: controller.signal,
     });
   } catch {
@@ -59,6 +58,22 @@ async function postJson<T>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function postJson<T>(
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+): Promise<T> {
+  const response = await ollamaFetch(
+    path,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    timeoutMs,
+  );
 
   if (!response.ok) {
     throw new OllamaResponseError(
@@ -106,7 +121,7 @@ export async function generate(
 export async function embed(input: string | string[]): Promise<number[][]> {
   const data = await postJson<{ embeddings?: unknown }>(
     "/api/embed",
-    { model: env.OLLAMA_EMBEDDING_MODEL, input },
+    { model: env.EMBEDDING_MODEL, input },
     EMBED_TIMEOUT_MS,
   );
 

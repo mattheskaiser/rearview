@@ -8,8 +8,8 @@ vi.mock("@/lib/env", () => ({
   env: {
     OLLAMA_BASE_URL: "http://ollama.test",
     OLLAMA_GENERATION_MODEL: "gen-model",
-    OLLAMA_EMBEDDING_MODEL: "embed-model",
-    OLLAMA_EMBEDDING_DIMENSIONS: 3,
+    EMBEDDING_MODEL: "embed-model",
+    EMBEDDING_DIMENSIONS: 3,
   },
 }));
 
@@ -34,6 +34,7 @@ import {
   saveMemory,
 } from "@/lib/memory.service";
 
+const USER = "user-1";
 const utc = (date: string) => new Date(`${date}T00:00:00.000Z`);
 const chunk = (entryId: string, journalDate: string, text: string) => ({
   entryId,
@@ -49,7 +50,7 @@ beforeEach(() => {
 
 describe("askJournal", () => {
   it("rejects an empty question without retrieving anything", async () => {
-    const result = await askJournal("   ");
+    const result = await askJournal(USER, "   ");
 
     expect(result.ok).toBe(false);
     expect(retrieval.retrieve).not.toHaveBeenCalled();
@@ -58,7 +59,7 @@ describe("askJournal", () => {
   it("returns an empty-results state when nothing was retrieved", async () => {
     retrieval.retrieve.mockResolvedValue({ chunks: [], entryDates: [] });
 
-    const result = await askJournal("what did I learn?");
+    const result = await askJournal(USER, "what did I learn?");
 
     expect(result).toEqual({
       ok: false,
@@ -80,7 +81,7 @@ describe("askJournal", () => {
       answer: "You wrestled with growth versus stability.",
     });
 
-    const result = await askJournal("career?");
+    const result = await askJournal(USER, "career?");
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -109,7 +110,7 @@ describe("askJournal", () => {
       reason: "ollama-unavailable",
     });
 
-    const result = await askJournal("q");
+    const result = await askJournal(USER, "q");
 
     expect(result).toEqual({
       ok: false,
@@ -131,14 +132,16 @@ describe("saveMemory", () => {
       entries: [{ journalDate: utc("2022-03-04") }],
     });
 
-    const result = await saveMemory({
+    const result = await saveMemory(USER, {
       question: "career?",
       answer: "A grounded answer.",
       dates: ["2022-03-04", "2022-08-02", "2022-03-04"],
     });
 
     expect(result.ok).toBe(true);
+    expect(journalDb.getEntriesByDates).toHaveBeenCalledWith(USER, expect.any(Array));
     const written = memoryDb.createMemory.mock.calls[0][0];
+    expect(written.userId).toBe(USER);
     expect(written.question).toBe("career?");
     // Deduped; missing entry recorded with a null id (snapshot still kept).
     expect(written.entries).toEqual([
@@ -148,7 +151,7 @@ describe("saveMemory", () => {
   });
 
   it("rejects an empty answer without touching the database", async () => {
-    const result = await saveMemory({ question: "q", answer: "  ", dates: [] });
+    const result = await saveMemory(USER, { question: "q", answer: "  ", dates: [] });
 
     expect(result.ok).toBe(false);
     expect(memoryDb.createMemory).not.toHaveBeenCalled();
@@ -170,7 +173,7 @@ describe("listSavedMemories", () => {
       },
     ]);
 
-    const [memory] = await listSavedMemories();
+    const [memory] = await listSavedMemories(USER);
 
     expect(memory).toEqual({
       id: "m1",
@@ -186,17 +189,28 @@ describe("listSavedMemories", () => {
 });
 
 describe("removeMemory", () => {
-  it("deletes by id", async () => {
-    memoryDb.deleteMemory.mockResolvedValue({});
+  it("deletes by id scoped to the owning user", async () => {
+    memoryDb.deleteMemory.mockResolvedValue(true);
 
-    const result = await removeMemory("m1");
+    const result = await removeMemory(USER, "m1");
 
     expect(result).toEqual({ ok: true });
-    expect(memoryDb.deleteMemory).toHaveBeenCalledWith("m1");
+    expect(memoryDb.deleteMemory).toHaveBeenCalledWith("m1", USER);
+  });
+
+  it("reports not-found when the id isn't this user's memory", async () => {
+    memoryDb.deleteMemory.mockResolvedValue(false);
+
+    const result = await removeMemory(USER, "someone-elses-memory");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "That memory could not be found.",
+    });
   });
 
   it("rejects a missing id without touching the database", async () => {
-    const result = await removeMemory("");
+    const result = await removeMemory(USER, "");
 
     expect(result.ok).toBe(false);
     expect(memoryDb.deleteMemory).not.toHaveBeenCalled();

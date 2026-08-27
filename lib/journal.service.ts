@@ -4,15 +4,21 @@ import type { JSONContent } from "@tiptap/core";
 import type { Prisma } from "@prisma/client";
 
 import { syncEntryEmbeddings } from "@/lib/ai/entry-embeddings.service";
-import { getEntryByDate, upsertEntryByDate } from "@/lib/db/journal";
+import {
+  deleteEntryByDate,
+  getEntryByDate,
+  upsertEntryByDate,
+} from "@/lib/db/journal";
 import { hashContentText } from "@/lib/editor/content-hash";
 import { formatJournalDate, toJournalDate } from "@/lib/time/journal-date";
 import { journalEntryInputSchema } from "@/lib/validation/journal";
 
 /**
  * Application-logic boundary for journal entries (CLAUDE.md > Architecture).
- * Route handlers / server actions call these; they never touch Prisma or Ollama
- * directly. Validation happens here regardless of any client-side checks.
+ * Route handlers / server actions call these with the authenticated `userId`;
+ * they never touch Prisma or Ollama directly. Validation happens here
+ * regardless of any client-side checks, and every read/write is scoped to
+ * `userId` (session prompt > Authorization).
  */
 
 /** Non-sensitive shape handed to a deferred embedding job after a save. */
@@ -29,12 +35,13 @@ export type SaveJournalEntryResult =
 const SAVE_FAILED = "Could not save your entry. Please try again.";
 
 /**
- * Validate, fingerprint and persist one journal entry (one row per
- * `journalDate`). On success `onSaved` is invoked synchronously so the caller
- * can schedule deferred embedding work; the entry is already committed by then,
- * so anything the caller does with it cannot roll the save back.
+ * Validate, fingerprint and persist one journal entry for `userId` (one row per
+ * `journalDate` per user). On success `onSaved` is invoked synchronously so the
+ * caller can schedule deferred embedding work; the entry is already committed
+ * by then, so anything the caller does with it cannot roll the save back.
  */
 export async function saveJournalEntry(
+  userId: string,
   input: unknown,
   onSaved?: (entry: SavedEntryForEmbedding) => void,
 ): Promise<SaveJournalEntryResult> {
@@ -51,6 +58,7 @@ export async function saveJournalEntry(
 
   try {
     const entry = await upsertEntryByDate({
+      userId,
       journalDate,
       content: content.content as Prisma.InputJsonValue,
       contentText: content.contentText,
@@ -91,10 +99,28 @@ export async function runEntryEmbeddingSync(
   }
 }
 
-/** TipTap document stored for `dateStr` (`YYYY-MM-DD`), or null if none. */
+/**
+ * Delete `userId`'s entry for `dateStr` (`YYYY-MM-DD`). The chunk / embedding
+ * rows are removed with it by the `EntryChunk` cascade, so a deleted entry
+ * leaves no searchable representation behind (session prompt > Chunking).
+ * Returns false when there was no entry on that date.
+ */
+export async function deleteJournalEntry(
+  userId: string,
+  dateStr: string,
+): Promise<boolean> {
+  try {
+    return await deleteEntryByDate(userId, toJournalDate(dateStr));
+  } catch {
+    return false;
+  }
+}
+
+/** TipTap document stored for `userId` on `dateStr` (`YYYY-MM-DD`), or null. */
 export async function getEntryContentForDate(
+  userId: string,
   dateStr: string,
 ): Promise<JSONContent | null> {
-  const entry = await getEntryByDate(toJournalDate(dateStr));
+  const entry = await getEntryByDate(userId, toJournalDate(dateStr));
   return (entry?.content as JSONContent | undefined) ?? null;
 }

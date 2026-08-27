@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 /**
  * Embedding capability, kept separate from generation (CLAUDE.md > AI). Every
  * vector returned by Ollama is checked against the configured dimensionality
- * before it can flow toward the `vector(768)` column — a mismatch means the
+ * before it can flow toward the `vector(1024)` column — a mismatch means the
  * wrong model is configured and must fail loudly, not corrupt storage.
  */
 
@@ -17,18 +17,15 @@ export class EmbeddingDimensionError extends Error {
   ) {
     super(
       `Embedding has ${actual} dimensions, expected ${expected}. ` +
-        `Check OLLAMA_EMBEDDING_MODEL / OLLAMA_EMBEDDING_DIMENSIONS.`,
+        `Check EMBEDDING_MODEL / EMBEDDING_DIMENSIONS.`,
     );
     this.name = "EmbeddingDimensionError";
   }
 }
 
 function assertDimensions(vector: number[]): number[] {
-  if (vector.length !== env.OLLAMA_EMBEDDING_DIMENSIONS) {
-    throw new EmbeddingDimensionError(
-      env.OLLAMA_EMBEDDING_DIMENSIONS,
-      vector.length,
-    );
+  if (vector.length !== env.EMBEDDING_DIMENSIONS) {
+    throw new EmbeddingDimensionError(env.EMBEDDING_DIMENSIONS, vector.length);
   }
   return vector;
 }

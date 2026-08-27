@@ -80,7 +80,7 @@ export async function syncEntryEmbeddings(
       await setChunkEmbedding({
         chunkId: chunk.id,
         embedding: vector,
-        model: env.OLLAMA_EMBEDDING_MODEL,
+        model: env.EMBEDDING_MODEL,
       });
       embedded += 1;
     }

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Application-logic tests: the real validation + hashing runs; the DB and the
-// embedding service are mocked so nothing touches Postgres or Ollama.
+// embedding service are mocked so nothing touches Postgres or Ollama. Every
+// call is scoped to a userId, which must reach the data layer unchanged.
 
 const db = vi.hoisted(() => ({
   upsertEntryByDate: vi.fn(),
   getEntryByDate: vi.fn(),
+  deleteEntryByDate: vi.fn(),
 }));
 const ai = vi.hoisted(() => ({ syncEntryEmbeddings: vi.fn() }));
 
@@ -14,10 +16,13 @@ vi.mock("@/lib/ai/entry-embeddings.service", () => ai);
 
 import { hashContentText } from "@/lib/editor/content-hash";
 import {
+  deleteJournalEntry,
   getEntryContentForDate,
   runEntryEmbeddingSync,
   saveJournalEntry,
 } from "@/lib/journal.service";
+
+const USER = "user-1";
 
 const doc = (text: string) => ({
   type: "doc",
@@ -37,8 +42,8 @@ beforeEach(() => {
 });
 
 describe("saveJournalEntry", () => {
-  it("persists a new entry with a normalized date and a hash of the extracted text", async () => {
-    const result = await saveJournalEntry({
+  it("persists a new entry scoped to the user, with a normalized date and a hash of the extracted text", async () => {
+    const result = await saveJournalEntry(USER, {
       journalDate: "2026-08-20",
       content: doc("Hello world"),
     });
@@ -48,6 +53,7 @@ describe("saveJournalEntry", () => {
       entry: { id: "entry-1", journalDate: "2026-08-20" },
     });
     const written = db.upsertEntryByDate.mock.calls[0][0];
+    expect(written.userId).toBe(USER);
     expect(written.journalDate.toISOString()).toBe("2026-08-20T00:00:00.000Z");
     expect(written.contentText).toBe("Hello world");
     expect(written.contentHash).toBe(hashContentText("Hello world"));
@@ -55,7 +61,7 @@ describe("saveJournalEntry", () => {
   });
 
   it("accepts a historical journal date and never writes createdAt itself", async () => {
-    const result = await saveJournalEntry({
+    const result = await saveJournalEntry(USER, {
       journalDate: "2015-03-04",
       content: doc("A day years ago"),
     });
@@ -67,8 +73,8 @@ describe("saveJournalEntry", () => {
   });
 
   it("re-saves the same journal date on edit and updates the hash when text changes", async () => {
-    await saveJournalEntry({ journalDate: "2026-08-20", content: doc("first version") });
-    await saveJournalEntry({ journalDate: "2026-08-20", content: doc("second version") });
+    await saveJournalEntry(USER, { journalDate: "2026-08-20", content: doc("first version") });
+    await saveJournalEntry(USER, { journalDate: "2026-08-20", content: doc("second version") });
 
     const [first, second] = db.upsertEntryByDate.mock.calls.map((c) => c[0]);
     expect(first.journalDate.toISOString()).toBe(second.journalDate.toISOString());
@@ -77,8 +83,8 @@ describe("saveJournalEntry", () => {
   });
 
   it("produces an identical hash when the entry text is unchanged", async () => {
-    await saveJournalEntry({ journalDate: "2026-08-20", content: doc("stable text") });
-    await saveJournalEntry({
+    await saveJournalEntry(USER, { journalDate: "2026-08-20", content: doc("stable text") });
+    await saveJournalEntry(USER, {
       journalDate: "2026-08-20",
       content: {
         type: "doc",
@@ -94,7 +100,11 @@ describe("saveJournalEntry", () => {
 
   it("hands the saved id, text and hash to the onSaved callback for deferred embedding", async () => {
     const onSaved = vi.fn();
-    await saveJournalEntry({ journalDate: "2026-08-20", content: doc("embed me") }, onSaved);
+    await saveJournalEntry(
+      USER,
+      { journalDate: "2026-08-20", content: doc("embed me") },
+      onSaved,
+    );
 
     expect(onSaved).toHaveBeenCalledWith({
       id: "entry-1",
@@ -104,7 +114,7 @@ describe("saveJournalEntry", () => {
   });
 
   it("rejects an empty entry without touching the database", async () => {
-    const result = await saveJournalEntry({
+    const result = await saveJournalEntry(USER, {
       journalDate: "2026-08-20",
       content: { type: "doc", content: [] },
     });
@@ -114,7 +124,7 @@ describe("saveJournalEntry", () => {
   });
 
   it("rejects a future journal date", async () => {
-    const result = await saveJournalEntry({
+    const result = await saveJournalEntry(USER, {
       journalDate: "2999-01-01",
       content: doc("from the future"),
     });
@@ -128,6 +138,7 @@ describe("saveJournalEntry", () => {
     const onSaved = vi.fn();
 
     const result = await saveJournalEntry(
+      USER,
       { journalDate: "2026-08-20", content: doc("boom") },
       onSaved,
     );
@@ -157,15 +168,37 @@ describe("runEntryEmbeddingSync", () => {
   });
 });
 
-describe("getEntryContentForDate", () => {
-  it("returns the stored document when an entry exists for the date", async () => {
-    db.getEntryByDate.mockResolvedValueOnce({ content: doc("recorded") });
-    await expect(getEntryContentForDate("2026-08-20")).resolves.toEqual(doc("recorded"));
-    expect(db.getEntryByDate.mock.calls[0][0].toISOString()).toBe("2026-08-20T00:00:00.000Z");
+describe("deleteJournalEntry", () => {
+  it("deletes by (userId, normalized date) and reports whether a row went", async () => {
+    db.deleteEntryByDate.mockResolvedValueOnce(true);
+    await expect(deleteJournalEntry(USER, "2026-08-20")).resolves.toBe(true);
+
+    const [userArg, dateArg] = db.deleteEntryByDate.mock.calls[0];
+    expect(userArg).toBe(USER);
+    expect(dateArg.toISOString()).toBe("2026-08-20T00:00:00.000Z");
   });
 
-  it("returns null when the date has no entry", async () => {
+  it("returns false when there was no entry or the delete throws", async () => {
+    db.deleteEntryByDate.mockResolvedValueOnce(false);
+    await expect(deleteJournalEntry(USER, "2026-08-20")).resolves.toBe(false);
+
+    db.deleteEntryByDate.mockRejectedValueOnce(new Error("db down"));
+    await expect(deleteJournalEntry(USER, "2026-08-20")).resolves.toBe(false);
+  });
+});
+
+describe("getEntryContentForDate", () => {
+  it("looks the entry up by (userId, date) and returns its document", async () => {
+    db.getEntryByDate.mockResolvedValueOnce({ content: doc("recorded") });
+    await expect(getEntryContentForDate(USER, "2026-08-20")).resolves.toEqual(doc("recorded"));
+
+    const [userArg, dateArg] = db.getEntryByDate.mock.calls[0];
+    expect(userArg).toBe(USER);
+    expect(dateArg.toISOString()).toBe("2026-08-20T00:00:00.000Z");
+  });
+
+  it("returns null when the date has no entry for this user", async () => {
     db.getEntryByDate.mockResolvedValueOnce(null);
-    await expect(getEntryContentForDate("2026-08-20")).resolves.toBeNull();
+    await expect(getEntryContentForDate(USER, "2026-08-20")).resolves.toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/env", () => ({
-  env: { OLLAMA_EMBEDDING_MODEL: "embed-model", OLLAMA_EMBEDDING_DIMENSIONS: 3 },
+  env: { EMBEDDING_MODEL: "embed-model", EMBEDDING_DIMENSIONS: 3 },
 }));
 vi.mock("@/lib/ai/ollama.service", () => ({ embed: vi.fn() }));
 

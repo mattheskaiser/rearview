@@ -77,16 +77,38 @@ describe("rerankForDiversity", () => {
 });
 
 describe("retrieve", () => {
-  it("embeds the question and over-fetches candidates by the multiplier", async () => {
+  it("embeds the question and over-fetches this user's candidates by the multiplier", async () => {
     chunkDb.searchChunksByEmbedding.mockResolvedValue([]);
 
-    await retrieve("how was my week?");
+    await retrieve("user-1", "how was my week?");
 
     expect(embedding.embedText).toHaveBeenCalledWith("how was my week?");
     expect(chunkDb.searchChunksByEmbedding).toHaveBeenCalledWith(
+      "user-1",
       [0.1, 0.2, 0.3],
       DEFAULT_RESULT_LIMIT * CANDIDATE_MULTIPLIER,
+      undefined,
     );
+  });
+
+  it("passes a normalized midnight-UTC date range through to the vector search", async () => {
+    chunkDb.searchChunksByEmbedding.mockResolvedValue([]);
+
+    await retrieve("user-1", "q", {
+      dateRange: { from: "2024-01-01", to: "2024-12-31" },
+    });
+
+    const [, , , range] = chunkDb.searchChunksByEmbedding.mock.calls[0];
+    expect(range.from.toISOString()).toBe("2024-01-01T00:00:00.000Z");
+    expect(range.to.toISOString()).toBe("2024-12-31T00:00:00.000Z");
+  });
+
+  it("treats an empty date range as no filter", async () => {
+    chunkDb.searchChunksByEmbedding.mockResolvedValue([]);
+
+    await retrieve("user-1", "q", { dateRange: {} });
+
+    expect(chunkDb.searchChunksByEmbedding.mock.calls[0][3]).toBeUndefined();
   });
 
   it("returns diversified chunks with formatted dates, similarity and distinct entryDates", async () => {
@@ -96,7 +118,7 @@ describe("retrieve", () => {
       match("b", "2022-02-02", 0, 0.2),
     ]);
 
-    const result = await retrieve("q", { limit: 2 });
+    const result = await retrieve("user-1", "q", { limit: 2 });
 
     expect(result.chunks.map((c) => c.entryId)).toEqual(["a", "b"]);
     expect(result.chunks[0]).toMatchObject({
@@ -110,7 +132,7 @@ describe("retrieve", () => {
   it("returns nothing when no chunks match", async () => {
     chunkDb.searchChunksByEmbedding.mockResolvedValue([]);
 
-    const result = await retrieve("q");
+    const result = await retrieve("user-1", "q");
 
     expect(result).toEqual({ chunks: [], entryDates: [] });
   });

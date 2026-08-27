@@ -12,7 +12,7 @@ const view = (entryId: string) =>
     .map(({ id, index, text }) => ({ id, chunkIndex: index, text }));
 
 vi.mock("@/lib/env", () => ({
-  env: { OLLAMA_EMBEDDING_MODEL: "embed-model", OLLAMA_EMBEDDING_DIMENSIONS: 3 },
+  env: { EMBEDDING_MODEL: "embed-model", EMBEDDING_DIMENSIONS: 3 },
 }));
 vi.mock("@/lib/ai/embedding.service", () => ({ embedText: vi.fn() }));
 vi.mock("@/lib/db/chunks", () => ({

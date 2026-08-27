@@ -1,5 +1,7 @@
 import "server-only";
 
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/db/client";
 
 /**
@@ -9,6 +11,12 @@ import { prisma } from "@/lib/db/client";
  * column as `Unsupported`, so it can neither write nor filter it. Everything
  * else uses ordinary Prisma. Vector concerns never leak into journal / memory /
  * goals access (CLAUDE.md > Database).
+ *
+ * Ownership: `EntryChunk` has no `userId` of its own — a chunk belongs to
+ * whoever owns its parent `JournalEntry`. The read path (`searchChunksByEmbedding`)
+ * takes the owning `userId` and joins through `JournalEntry`, so retrieval can
+ * never surface another user's chunk. The write-path functions are keyed by
+ * `entryId`, which the caller obtained from a user-scoped entry save.
  */
 
 export type ChunkInput = {
@@ -101,19 +109,39 @@ export type ChunkMatch = {
   distance: number;
 };
 
+/** Inclusive journal-date bounds (midnight-UTC calendar days). */
+export type DateRange = { from?: Date; to?: Date };
+
 /**
- * Nearest embedded chunks to a query vector, by cosine distance (raw SQL —
- * `vector` is Unsupported). The parent entry's journal date rides along so the
- * retrieval layer can diversify across dates without a second round-trip.
- * Embeddings never leave this module.
+ * Nearest embedded chunks to a query vector for one user, by cosine distance
+ * (raw SQL — `vector` is Unsupported). The join to `JournalEntry` also enforces
+ * ownership: `e."userId" = ${userId}` means a search can only ever return the
+ * caller's own chunks. An optional `dateRange` narrows the search to entries
+ * whose journal date falls within the given bounds. The parent entry's journal
+ * date rides along so the retrieval layer can diversify across dates without a
+ * second round-trip. Embeddings never leave this module.
  */
 export async function searchChunksByEmbedding(
+  userId: string,
   embedding: number[],
   limit: number,
+  dateRange?: DateRange,
 ): Promise<ChunkMatch[]> {
   if (embedding.length === 0 || limit <= 0) return [];
   const literal = `[${embedding.join(",")}]`;
-  const rows = await prisma.$queryRaw<ChunkMatch[]>`
+
+  const conditions = [
+    Prisma.sql`c."embedding" IS NOT NULL`,
+    Prisma.sql`e."userId" = ${userId}`,
+  ];
+  if (dateRange?.from) {
+    conditions.push(Prisma.sql`e."journalDate" >= ${dateRange.from}`);
+  }
+  if (dateRange?.to) {
+    conditions.push(Prisma.sql`e."journalDate" <= ${dateRange.to}`);
+  }
+
+  const rows = await prisma.$queryRaw<ChunkMatch[]>(Prisma.sql`
     SELECT c."entryId"     AS "entryId",
            e."journalDate" AS "journalDate",
            c."chunkIndex"  AS "chunkIndex",
@@ -121,10 +149,10 @@ export async function searchChunksByEmbedding(
            (c."embedding" <=> ${literal}::vector) AS "distance"
     FROM "EntryChunk" c
     JOIN "JournalEntry" e ON e."id" = c."entryId"
-    WHERE c."embedding" IS NOT NULL
+    WHERE ${Prisma.join(conditions, " AND ")}
     ORDER BY "distance" ASC
     LIMIT ${limit}
-  `;
+  `);
   return rows.map((row) => ({
     ...row,
     chunkIndex: Number(row.chunkIndex),

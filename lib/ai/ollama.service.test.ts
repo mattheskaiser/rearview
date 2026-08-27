@@ -4,8 +4,8 @@ vi.mock("@/lib/env", () => ({
   env: {
     OLLAMA_BASE_URL: "http://ollama.test",
     OLLAMA_GENERATION_MODEL: "gen-model",
-    OLLAMA_EMBEDDING_MODEL: "embed-model",
-    OLLAMA_EMBEDDING_DIMENSIONS: 3,
+    EMBEDDING_MODEL: "embed-model",
+    EMBEDDING_DIMENSIONS: 3,
   },
 }));
 
