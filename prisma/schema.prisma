@@ -1,0 +1,97 @@
+// Rearview — persistence schema.
+//
+// Design notes (per CLAUDE.md):
+// - `journalDate` is the user-facing date the entry is ABOUT and is stored
+//   explicitly as a DATE. It is distinct from `createdAt` (row insertion time).
+//   Journal chronology must never be derived from `createdAt`.
+// - One journal entry per calendar date: `journalDate` is unique. This matches
+//   the Overview activity map (binary "entry exists on this date?") and the
+//   single-result `getEntryByDate` access pattern.
+// - Rich text is stored as TipTap document JSON in `content`. `contentText` is
+//   the deterministically extracted plain text used for search and embeddings,
+//   so retrieval never has to parse presentation markup.
+// - `contentHash` is a hash of `contentText`; Phase 3 uses it to detect when an
+//   edit has invalidated existing chunks/embeddings. Each `EntryChunk` records
+//   the `sourceHash` it was derived from so a changed entry deterministically
+//   regenerates its chunk set instead of leaving stale embeddings behind.
+// - Embeddings live only in `EntryChunk` and are never selected into any
+//   client-facing payload.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector]
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  journalDate DateTime @unique @db.Date
+  content     Json
+  contentText String
+  contentHash String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  chunks        EntryChunk[]
+  memoryEntries MemoryEntry[]
+  // `journalDate` is @unique, which already provides the lookup index.
+}
+
+model EntryChunk {
+  id         String                      @id @default(cuid())
+  entryId    String
+  chunkIndex Int
+  text       String
+  // Hash of the parent entry's `contentText` this chunk was derived from.
+  // When it no longer matches `JournalEntry.contentHash`, the chunk is stale.
+  sourceHash String
+  // pgvector column. Dimension MUST match OLLAMA_EMBEDDING_DIMENSIONS (768 for
+  // nomic-embed-text). Nullable: a chunk row is written first and embedded
+  // asynchronously, so a failed embedding never corrupts the journal entry.
+  embedding  Unsupported("vector(768)")?
+  model      String?
+  createdAt  DateTime                    @default(now())
+  embeddedAt DateTime?
+
+  entry JournalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@unique([entryId, chunkIndex])
+  @@index([entryId])
+}
+
+model Memory {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  createdAt DateTime @default(now())
+
+  entries MemoryEntry[]
+}
+
+model MemoryEntry {
+  id          String   @id @default(cuid())
+  memoryId    String
+  entryId     String?
+  // Date snapshot of the referenced entry, retained even if the entry is later
+  // deleted. Saved memories are snapshots, not live views.
+  journalDate DateTime @db.Date
+
+  memory Memory        @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  entry  JournalEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@unique([memoryId, entryId])
+  @@index([memoryId])
+}
+
+model CurrentGoals {
+  // Single-row model: always read/written at the fixed id "singleton".
+  id        String   @id @default("singleton")
+  text      String   @default("")
+  updatedAt DateTime @updatedAt
+}
