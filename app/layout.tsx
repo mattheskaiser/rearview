@@ -8,22 +8,26 @@ const montserrat = Montserrat({
   subsets: ["latin"],
 });
 
-
-
 export const metadata: Metadata = {
   title: "Rearview",
   description: "Review what's in the rearview.",
 };
 
+const navItems = [
+  { label: "Overview", href: "/overview" },
+  { label: "Entries", href: "/entries" },
+  { label: "Memories", href: "/memories" },
+];
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${montserrat.variable} h-full antialiased bg-[#003554]`}
+      className={`${montserrat.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-row">
-        <Sidebar items={[{label: "Explore", href: "/explore"}, {label: "Memories", href: "/memories"}, {label: "Entries", href: "/entries"}]}/>
-        {children}
+      <body className="min-h-full flex flex-row bg-background text-foreground">
+        <Sidebar items={navItems} />
+        <main className="flex-1">{children}</main>
       </body>
     </html>
   );
