@@ -41,11 +41,10 @@ assertions:
 `difficult` tier == plan "known-difficult" (B7, C3, C4, D1, D4, F1, F3, X12):
 recorded in the transcript, never a merge gate.
 
-## Not started
+## Done
 
-**Level-2 (vitest integration).**
-`test/integration/multilingual-retrieval.test.ts` still points its vector-level
-proof at `test/fixtures/multilingual-corpus.ts` (20 entries). Plan §9 Level 2
-wants it re-pointed at this 60-entry corpus' plain texts so the vector proof and
-the E2E proof share content. Separate suite (`npm run test:integration`), not
-Playwright.
+**Level-2 (vitest integration).** `test/integration/multilingual-retrieval.test.ts`
+now embeds `e2e/fixtures/corpus.ts` (the same 60-entry corpus the Playwright
+suite seeds) — the vector-level proof and the E2E proof share content (plan §9
+Level 2). The obsolete `test/fixtures/multilingual-corpus.ts` (20 entries) was
+removed. Separate suite: `npm run test:integration`, real Ollama + bge-m3, no DB.
