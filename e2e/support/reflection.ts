@@ -42,7 +42,7 @@ export type ReflectionSpec = {
 };
 
 export const UNCERTAINTY_RE =
-  /nicht genug|keine Einträge|keine Hinweise|unklar|weiß nicht|not enough|no entries|nothing (about|in)|no menciono|no hay|insufficient|can'?t tell|doesn'?t (say|mention|record)/i;
+  /nicht genug|keine? (Einträge|Hinweise?|Erwähnung|Angabe)|unklar|weiß nicht|erwähne? (nichts|keine)|nirgends|not enough|no entries|nothing (about|in)|no (mention|record|reference)|not (mentioned|recorded)|(is|are|was|were) (not|n't) mention|there (is|are) no|doesn'?t (say|mention|record|indicate)|don'?t (mention|record)|no menciona|no hay|nada (sobre|de)|ning[úu]n|insufficient|can'?t tell/i;
 
 type Attempt = { attempt: number; answer: string; evidenceDates: string[]; error: string | null };
 

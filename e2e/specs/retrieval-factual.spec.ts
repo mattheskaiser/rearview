@@ -2,8 +2,8 @@ import { test } from "../fixtures/app.fixture";
 import { runReflection, type ReflectionSpec } from "../support/reflection";
 
 /**
- * Category A — exact factual retrieval, the Must subset (plan §11: A1, A2, A4,
- * A5, A7, A8). The remaining A/F cases are listed in e2e/specs/TODO.md.
+ * Category A — exact factual retrieval — and Category F — specific-occurrence
+ * retrieval (plan §6 / §11).
  *
  * Query wording is calibrated to what the seeded corpus + bge-m3 actually
  * retrieve (plan §0: "every expectation is calibrated to the current
@@ -70,6 +70,88 @@ const SPECS: ReflectionSpec[] = [
     expectRelevantDates: ["2024-07-12"],
     expectTopDate: "2024-07-12",
     expectAnswerIncludes: [/spanien|spain|españa/i],
+  },
+  {
+    id: "A3",
+    question: "Was habe ich über den Umzug geschrieben?",
+    queryLang: "de",
+    tier: "should",
+    expectRelevantDates: ["2023-05-06"],
+    expectTopDate: "2023-05-06",
+    // The Mexico trip (#56) and the "golden cage" entry (#34) must not dominate.
+    expectAbsentDates: ["2026-05-03", "2024-09-16"],
+    expectAnswerIncludes: [/wohnung|umzug|zog|zieh|kisten/i],
+  },
+  {
+    id: "A6",
+    question: "Wie viel Rücklage hatte ich Anfang 2025?",
+    queryLang: "de",
+    tier: "should",
+    expectRelevantDates: ["2025-02-11"],
+    expectTopDate: "2025-02-11",
+    // llama3.1 reliably surfaces the €8,400 figure but often drops the
+    // "~5 months" framing, so only the figure is asserted.
+    expectAnswerIncludes: [/8[.,]?400|8400/],
+  },
+  {
+    id: "F1",
+    question: "When did I first mention wanting to change careers?",
+    queryLang: "en",
+    tier: "difficult",
+    expectRelevantDates: ["2023-10-21"],
+    expectTopDate: "2023-10-21",
+    expectAbsentDates: ["2024-02-14", "2024-09-16"],
+    expectAnswerIncludes: [/2023|october|oktober/i],
+  },
+  {
+    id: "F2",
+    question:
+      "Zeig mir alle Einträge, in denen ich mich ausgebrannt gefühlt habe.",
+    queryLang: "de",
+    tier: "should",
+    expectRelevantDates: ["2023-06-18", "2023-09-05"],
+    expectAbsentDates: ["2022-04-11", "2024-08-14"],
+    expectMultiEntry: true,
+    expectAnswerIncludes: [/2023|ausgebrannt|burn/i],
+  },
+  {
+    id: "F3",
+    question: "Wann habe ich über eine große Auslandsreise geschrieben?",
+    queryLang: "de",
+    tier: "difficult",
+    expectRelevantDates: ["2026-05-03"],
+    expectTopDate: "2026-05-03",
+    // The 2023 flat move is a local move, not this.
+    expectAbsentDates: ["2023-05-06"],
+    expectAnswerIncludes: [/mexiko|mexico|reise|trip|ausland/i],
+  },
+  {
+    id: "F4",
+    question: "Every entry about working on my novel.",
+    queryLang: "en",
+    tier: "must",
+    expectRelevantDates: [
+      "2022-09-03",
+      "2023-11-30",
+      "2025-06-07",
+      "2026-03-08",
+    ],
+    minRelevant: 3,
+    // #29 (2024-04-01) is about reading a novel, not writing one.
+    expectAbsentDates: ["2024-04-01"],
+    expectMultiEntry: true,
+    expectAnswerIncludes: [/roman|novel/i],
+  },
+  {
+    id: "F5",
+    question: "Wann habe ich einen ruhigen Tag auf dem Balkon verbracht?",
+    queryLang: "de",
+    tier: "should",
+    expectRelevantDates: ["2024-05-04"],
+    expectTopDate: "2024-05-04",
+    // #5 (2022-05-09) is relief after the exam, not contentment.
+    expectAbsentDates: ["2022-05-09"],
+    expectAnswerIncludes: [/balkon|balcony|buch|book|2024/i],
   },
 ];
 
