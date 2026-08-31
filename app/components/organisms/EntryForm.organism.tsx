@@ -29,6 +29,7 @@ export const EntryForm = ({ dateStr, initialContent }: EntryFormProps) => {
   const router = useRouter();
   const [doc, setDoc] = useState<JSONContent | null>(initialContent);
   const [status, setStatus] = useState<Status | null>(null);
+  const [resetSignal, setResetSignal] = useState(0);
   const [pending, startTransition] = useTransition();
 
   const goToDate = (date: Date | undefined) => {
@@ -46,7 +47,11 @@ export const EntryForm = ({ dateStr, initialContent }: EntryFormProps) => {
     startTransition(async () => {
       const result = await saveEntryAction({ journalDate: dateStr, content: doc });
       if (result.ok) {
+        // Only on success: clear the editor back to its empty state so the next
+        // entry starts fresh. A failed save keeps everything the user typed.
         setStatus({ tone: "success", text: "Entry saved." });
+        setDoc(null);
+        setResetSignal((n) => n + 1);
         router.refresh();
       } else {
         setStatus({ tone: "error", text: result.error });
@@ -71,6 +76,7 @@ export const EntryForm = ({ dateStr, initialContent }: EntryFormProps) => {
         content={initialContent ?? undefined}
         onChange={setDoc}
         ariaLabel="Journal entry"
+        resetSignal={resetSignal}
       />
       <div className="flex items-center justify-between gap-4">
         {status ? (
