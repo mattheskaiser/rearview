@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
-import { Bold, Italic, List } from "lucide-react";
+import { Bold, Italic, List, ListOrdered } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,7 @@ const ToolButton = ({ label, active, onClick, children }: ToolButtonProps) => (
     aria-pressed={active}
     onClick={onClick}
     className={cn(
-      "inline-flex size-8 items-center justify-center rounded-md border border-border transition-colors",
+      "inline-flex size-8 cursor-pointer items-center justify-center rounded-md border border-border transition-colors",
       active
         ? "bg-primary text-primary-foreground"
         : "text-foreground hover:bg-secondary/60",
@@ -39,6 +39,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
       bold: e.isActive("bold"),
       italic: e.isActive("italic"),
       bulletList: e.isActive("bulletList"),
+      orderedList: e.isActive("orderedList"),
     }),
   });
 
@@ -64,6 +65,13 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         onClick={() => editor.chain().focus().toggleBulletList().run()}
       >
         <List className="size-4" />
+      </ToolButton>
+      <ToolButton
+        label="Numbered list"
+        active={state.orderedList}
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+      >
+        <ListOrdered className="size-4" />
       </ToolButton>
     </div>
   );

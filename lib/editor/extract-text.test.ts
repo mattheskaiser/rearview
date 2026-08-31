@@ -35,6 +35,20 @@ describe("extractPlainText", () => {
     );
   });
 
+  it("numbers ordered list items from attrs.start", () => {
+    const list: TipTapNode = {
+      type: "orderedList",
+      attrs: { start: 2 },
+      content: [
+        { type: "listItem", content: [p(t("second"))] },
+        { type: "listItem", content: [p(t("third"))] },
+      ],
+    };
+    expect(extractPlainText(doc(p(t("Ranking:")), list))).toBe(
+      "Ranking:\n2. second\n3. third",
+    );
+  });
+
   it("turns a hardBreak into a newline within a paragraph", () => {
     expect(
       extractPlainText(doc(p(t("line one"), { type: "hardBreak" }, t("line two")))),

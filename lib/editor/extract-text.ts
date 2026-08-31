@@ -7,7 +7,8 @@
  *
  * Rules:
  * - Paragraphs become lines; a `hardBreak` is a newline within a line.
- * - Bullet list items are prefixed with "- "; nested content is flattened.
+ * - Bullet list items are prefixed with "- "; numbered list items with "N. ";
+ *   nested content is flattened.
  * - Marks (bold, italic) carry no textual meaning and are ignored.
  * - Unknown node types are traversed for any `text` they contain.
  */
@@ -46,6 +47,20 @@ function blockLines(node: TipTapNode): string[] {
         const lines = (item.content ?? []).flatMap(blockLines);
         const nonEmpty = lines.length ? lines : [""];
         return nonEmpty.map((line, i) => (i === 0 ? `- ${line}` : `  ${line}`));
+      });
+    }
+
+    case "orderedList": {
+      const items = node.content ?? [];
+      const startRaw = Number(node.attrs?.start);
+      let n = Number.isFinite(startRaw) ? startRaw : 1;
+      return items.flatMap((item) => {
+        const lines = (item.content ?? []).flatMap(blockLines);
+        const nonEmpty = lines.length ? lines : [""];
+        const prefix = `${n}. `;
+        n += 1;
+        const indent = " ".repeat(prefix.length);
+        return nonEmpty.map((line, i) => (i === 0 ? `${prefix}${line}` : `${indent}${line}`));
       });
     }
 
