@@ -69,7 +69,9 @@ export const test = base.extend<AppFixtures>({
       await panel.getByRole("button", { name: "Ask" }).click();
 
       const cards = panel.locator("a[data-evidence-card]");
-      const answer = panel.locator("p[data-answer]");
+      // `[data-answer]` is a <p> while tokens stream and a rich <div> once the
+      // answer settles into editor-native formatting.
+      const answer = panel.locator("[data-answer]");
       const alert = panel.getByRole("alert");
       const stop = panel.getByRole("button", { name: "Stop" });
 

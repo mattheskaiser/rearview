@@ -83,6 +83,37 @@ test("a bulleted list round-trips through save and reload", async ({ authedPage:
   await expect(page.getByLabel("Journal entry").locator("li")).toHaveCount(2);
 });
 
+test("the editor clears after a successful save", async ({ authedPage: page }) => {
+  await gotoEntry(page, "2021-10-05");
+  const editor = page.getByLabel("Journal entry");
+  await editor.click();
+  await editor.pressSequentially("A quick note to file away.");
+  await saveEntry(page);
+
+  // Form is back to empty for the next entry — but the entry is safely stored.
+  await expect(editor).not.toContainText("A quick note to file away.");
+  await gotoEntry(page, "2021-10-05");
+  await expect(editor).toContainText("A quick note to file away.");
+});
+
+test("a numbered list round-trips through save and reload", async ({
+  authedPage: page,
+}) => {
+  await gotoEntry(page, "2021-11-12");
+  const editor = page.getByLabel("Journal entry");
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.press("Delete");
+  await page.getByRole("button", { name: "Numbered list" }).click();
+  await editor.pressSequentially("first step");
+  await page.keyboard.press("Enter");
+  await editor.pressSequentially("second step");
+  await saveEntry(page);
+
+  await gotoEntry(page, "2021-11-12");
+  await expect(page.getByLabel("Journal entry").locator("ol li")).toHaveCount(2);
+});
+
 test("editing an entry updates it in place", async ({ authedPage: page, prisma }) => {
   await gotoEntry(page, "2021-07-15");
   await writeAndSave(page, "First version of this day.");

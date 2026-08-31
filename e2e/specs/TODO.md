@@ -8,7 +8,9 @@ loose, `minRelevant` where the plan says "≥N of".
 
 > **Fixture note:** the Memories page is retrieval-first and streams the answer.
 > `ask()` waits for phase 1 (evidence cards `a[data-evidence-card]` or an error),
-> then phase 2 (the **Stop** button going away), then reads `p[data-answer]`.
+> then phase 2 (the **Stop** button going away), then reads `[data-answer]`
+> (a `<p>` while streaming, a rich `<div>` once the answer settles into
+> editor-native formatting).
 
 ## Calibration (plan §0 — "calibrated to the current implementation")
 
