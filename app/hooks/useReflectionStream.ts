@@ -1,12 +1,14 @@
 "use client";
+import type { JSONContent } from "@tiptap/core";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
   retrieveEvidenceAction,
   saveMemoryAction,
 } from "@/app/(app)/memories/actions";
 import { readReflectionStream } from "@/app/hooks/read-reflection-stream";
+import { markdownToTiptap } from "@/lib/editor/markdown-to-tiptap";
 import type { EvidenceCard } from "@/lib/types/memory";
 
 /**
@@ -133,11 +135,21 @@ export function useReflectionStream() {
 
   const settled = phase === "done" || phase === "stopped" || phase === "error";
 
+  // Once generation is settled, present the answer as editor-native rich text —
+  // Markdown bullets / numbers / emphasis become real structure instead of raw
+  // `*` characters (task: "Fix AI-generated output formatting"). While tokens
+  // are still streaming the raw text is shown as-is.
+  const answerDoc = useMemo<JSONContent | null>(
+    () => (settled && answer.trim() ? markdownToTiptap(answer) : null),
+    [settled, answer],
+  );
+
   return {
     phase,
     question,
     evidence,
     answer,
+    answerDoc,
     error,
     saveStatus,
     saving,

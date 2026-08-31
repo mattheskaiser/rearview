@@ -1,11 +1,16 @@
+import type { JSONContent } from "@tiptap/core";
+
 import { Badge } from "@/app/components/atoms/Badge.atom";
 import { FormMessage } from "@/app/components/atoms/FormMessage.atom";
+import { RichTextContent } from "@/app/components/molecules/RichTextContent.molecule";
 import { Spinner } from "@/app/components/atoms/Spinner.atom";
 import { Button } from "@/components/ui/button";
 import type { ReflectionPhase } from "@/app/hooks/useReflectionStream";
 
 type AnswerPanelProps = {
   answer: string;
+  /** The settled answer as editor-native rich text; null while streaming. */
+  answerDoc: JSONContent | null;
   phase: ReflectionPhase;
   error: string | null;
   canStop: boolean;
@@ -24,6 +29,7 @@ type AnswerPanelProps = {
  */
 export const AnswerPanel = ({
   answer,
+  answerDoc,
   phase,
   error,
   canStop,
@@ -74,7 +80,11 @@ export const AnswerPanel = ({
         </p>
       ) : null}
 
-      {answer ? (
+      {answerDoc ? (
+        <div data-answer>
+          <RichTextContent doc={answerDoc} />
+        </div>
+      ) : answer ? (
         <p data-answer className="text-sm leading-relaxed whitespace-pre-wrap">
           {answer}
           {canStop ? <span className="animate-pulse">▍</span> : null}

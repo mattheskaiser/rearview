@@ -22,6 +22,8 @@ export type MemoryWriteData = {
   userId: string;
   question: string;
   answer: string;
+  /** The answer as editor-native TipTap JSON (see schema `Memory.answerDoc`). */
+  answerDoc?: Prisma.InputJsonValue;
   entries: MemoryEntryRef[];
 };
 
@@ -36,6 +38,7 @@ export function createMemory(data: MemoryWriteData): Promise<MemoryWithEntries> 
       userId: data.userId,
       question: data.question,
       answer: data.answer,
+      ...(data.answerDoc !== undefined ? { answerDoc: data.answerDoc } : {}),
       entries: { create: entries },
     },
     include: { entries: true },

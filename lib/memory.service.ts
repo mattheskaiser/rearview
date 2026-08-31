@@ -7,11 +7,13 @@ import {
   type MemoryWithEntries,
 } from "@/lib/db/memory";
 import { getEntriesByDates } from "@/lib/db/journal";
+import { markdownToTiptap } from "@/lib/editor/markdown-to-tiptap";
 import {
   formatJournalDate,
   formatJournalDateLabel,
 } from "@/lib/time/journal-date";
 import type { Evidence, SavedMemory } from "@/lib/types/memory";
+import type { Prisma } from "@prisma/client";
 import { memoryIdSchema, saveMemoryInputSchema } from "@/lib/validation/memory";
 
 /**
@@ -58,6 +60,9 @@ export async function saveMemory(
       userId,
       question,
       answer,
+      // Convert the AI's Markdown into editor-native structure once, at save
+      // time, so it renders consistently everywhere and survives reload.
+      answerDoc: markdownToTiptap(answer) as unknown as Prisma.InputJsonValue,
       entries: dates.map((date) => ({
         entryId: idByDate.get(date.getTime()) ?? null,
         journalDate: date,
@@ -97,6 +102,11 @@ function toSavedMemory(memory: MemoryWithEntries): SavedMemory {
     id: memory.id,
     question: memory.question,
     answer: memory.answer,
+    // Prefer the stored rich document; fall back to converting legacy plain
+    // text (rows saved before `answerDoc` existed).
+    answerDoc:
+      (memory.answerDoc as SavedMemory["answerDoc"] | null) ??
+      markdownToTiptap(memory.answer),
     evidence: toEvidence(dates),
     savedAt: memory.createdAt.toISOString(),
   };

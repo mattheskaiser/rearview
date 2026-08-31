@@ -82,7 +82,15 @@ model EntryChunk {
 model Memory {
   id        String   @id @default(cuid())
   question  String
+  // Plain-text answer — retained for backward compatibility, search, and as the
+  // log-safe text form.
   answer    String
+  // The same answer as an editor-native TipTap document (paragraphs, line
+  // breaks, bulleted / numbered lists, bold, italic). Written at save time from
+  // the AI's Markdown so formatting survives save -> reload -> re-render. NULL on
+  // rows created before this column existed; those are converted from `answer`
+  // on read.
+  answerDoc Json?
   createdAt DateTime @default(now())
 
   // Owning user. Nullable only during the auth migration (see header note).

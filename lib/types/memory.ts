@@ -1,3 +1,5 @@
+import type { JSONContent } from "@tiptap/core";
+
 /** A dated pointer to a journal entry that supported an answer. */
 export type Evidence = {
   /** YYYY-MM-DD */
@@ -40,4 +42,10 @@ export type SavedMemory = Reflection & {
   id: string;
   /** ISO timestamp. */
   savedAt: string;
+  /**
+   * The answer as an editor-native TipTap document — paragraphs, line breaks,
+   * bulleted / numbered lists, bold, italic — for consistent rendering. Legacy
+   * rows are converted from `answer` on read.
+   */
+  answerDoc: JSONContent;
 };

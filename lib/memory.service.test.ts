@@ -60,6 +60,13 @@ describe("saveMemory", () => {
     const written = memoryDb.createMemory.mock.calls[0][0];
     expect(written.userId).toBe(USER);
     expect(written.question).toBe("career?");
+    // The answer is also stored as an editor-native document.
+    expect(written.answerDoc).toEqual({
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "A grounded answer." }] },
+      ],
+    });
     // Deduped; missing entry recorded with a null id (snapshot still kept).
     expect(written.entries).toEqual([
       { entryId: "e-a", journalDate: utc("2022-03-04") },
@@ -96,12 +103,50 @@ describe("listSavedMemories", () => {
       id: "m1",
       question: "Q?",
       answer: "A.",
+      // Legacy row (no answerDoc) — converted from the plain-text answer on read.
+      answerDoc: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "A." }] }],
+      },
       savedAt: "2023-03-02T18:45:00.000Z",
       evidence: [
         { date: "2022-02-01", label: "Feb 1, 2022" },
         { date: "2022-06-24", label: "Jun 24, 2022" },
       ],
     });
+  });
+
+  it("keeps the stored rich document when the row already has answerDoc", async () => {
+    const answerDoc = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          content: [
+            {
+              type: "listItem",
+              content: [
+                { type: "paragraph", content: [{ type: "text", text: "one" }] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    memoryDb.listMemories.mockResolvedValue([
+      {
+        id: "m2",
+        question: "Q?",
+        answer: "- one",
+        answerDoc,
+        createdAt: new Date("2023-03-02T18:45:00.000Z"),
+        entries: [],
+      },
+    ]);
+
+    const [memory] = await listSavedMemories(USER);
+
+    expect(memory.answerDoc).toEqual(answerDoc);
   });
 });
 
