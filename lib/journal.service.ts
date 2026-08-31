@@ -7,10 +7,16 @@ import { syncEntryEmbeddings } from "@/lib/ai/entry-embeddings.service";
 import {
   deleteEntryByDate,
   getEntryByDate,
+  listEntriesForYear,
+  listEntryDates,
   upsertEntryByDate,
 } from "@/lib/db/journal";
 import { hashContentText } from "@/lib/editor/content-hash";
-import { formatJournalDate, toJournalDate } from "@/lib/time/journal-date";
+import {
+  formatJournalDate,
+  formatJournalHeading,
+  toJournalDate,
+} from "@/lib/time/journal-date";
 import { journalEntryInputSchema } from "@/lib/validation/journal";
 
 /**
@@ -123,4 +129,56 @@ export async function getEntryContentForDate(
 ): Promise<JSONContent | null> {
   const entry = await getEntryByDate(userId, toJournalDate(dateStr));
   return (entry?.content as JSONContent | undefined) ?? null;
+}
+
+/** One calendar year that has journal entries, with how many. */
+export type JournalYearSummary = { year: number; count: number };
+
+/** One entry prepared for the Journal browsing view. */
+export type JournalEntryView = {
+  id: string;
+  /** `YYYY-MM-DD`. */
+  journalDate: string;
+  /** e.g. "Monday, August 31st 2026". */
+  heading: string;
+  /** The stored TipTap document, rendered with its original formatting. */
+  doc: JSONContent;
+};
+
+const EMPTY_DOC: JSONContent = { type: "doc", content: [] };
+
+/**
+ * Years `userId` has written in, newest first, each with an entry count. Backs
+ * the year picker on the Journal tab. Derived from the (cheap) list of entry
+ * dates rather than a second aggregate query.
+ */
+export async function listJournalYears(
+  userId: string,
+): Promise<JournalYearSummary[]> {
+  const dates = await listEntryDates(userId);
+  const counts = new Map<number, number>();
+  for (const date of dates) {
+    const year = Number(date.slice(0, 4));
+    counts.set(year, (counts.get(year) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => b.year - a.year);
+}
+
+/** `userId`'s entries for one calendar year, newest first, ready to render. */
+export async function listJournalEntriesForYear(
+  userId: string,
+  year: number,
+): Promise<JournalEntryView[]> {
+  const rows = await listEntriesForYear(userId, year);
+  return rows.map((row) => {
+    const journalDate = formatJournalDate(row.journalDate);
+    return {
+      id: row.id,
+      journalDate,
+      heading: formatJournalHeading(journalDate),
+      doc: (row.content as JSONContent | null) ?? EMPTY_DOC,
+    };
+  });
 }

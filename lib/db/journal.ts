@@ -84,6 +84,24 @@ export async function deleteEntryByDate(
   return count > 0;
 }
 
+/**
+ * Every entry for `userId` whose calendar date falls in `year` (UTC), newest
+ * first — feeds the Journal browsing view. Returns the stored TipTap document
+ * so the entry can be rendered with its original formatting.
+ */
+export function listEntriesForYear(
+  userId: string,
+  year: number,
+): Promise<{ id: string; journalDate: Date; content: unknown }[]> {
+  const start = new Date(Date.UTC(year, 0, 1));
+  const end = new Date(Date.UTC(year + 1, 0, 1));
+  return prisma.journalEntry.findMany({
+    where: { userId, journalDate: { gte: start, lt: end } },
+    select: { id: true, journalDate: true, content: true },
+    orderBy: { journalDate: "desc" },
+  });
+}
+
 /** Every date this user has an entry, as `YYYY-MM-DD` ascending — feeds the activity map. */
 export async function listEntryDates(userId: string): Promise<string[]> {
   const rows = await prisma.journalEntry.findMany({

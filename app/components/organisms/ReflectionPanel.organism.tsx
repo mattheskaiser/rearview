@@ -3,7 +3,7 @@ import { FormMessage } from "@/app/components/atoms/FormMessage.atom";
 import { QuestionInput } from "@/app/components/molecules/QuestionInput.molecule";
 import { AnswerPanel } from "@/app/components/organisms/AnswerPanel.organism";
 import { EvidenceCards } from "@/app/components/organisms/EvidenceCards.organism";
-import { useReflectionStream } from "@/app/hooks/useReflectionStream";
+import { useReflection } from "@/app/hooks/reflection-context";
 
 /**
  * Ask the journal a question. Retrieval runs first and its entries render as
@@ -11,7 +11,7 @@ import { useReflectionStream } from "@/app/hooks/useReflectionStream";
  * points back to the authoritative journal entries.
  */
 export const ReflectionPanel = () => {
-  const r = useReflectionStream();
+  const r = useReflection();
   const showPanel = r.evidence.length > 0 || r.answer.length > 0 || r.streaming;
 
   return (
@@ -26,6 +26,7 @@ export const ReflectionPanel = () => {
         <div className="flex flex-col gap-4">
           <AnswerPanel
             answer={r.answer}
+            answerDoc={r.answerDoc}
             phase={r.phase}
             error={r.error}
             canStop={r.canStop}

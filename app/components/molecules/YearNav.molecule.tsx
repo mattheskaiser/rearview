@@ -5,16 +5,24 @@ type YearNavProps = {
   years: number[];
   selected: number;
   onSelect: (year: number) => void;
+  /** Accessible name; defaults to the activity-map wording. */
+  ariaLabel?: string;
 };
 
 /**
- * Vertical year picker beside the activity calendar. The list is data-driven —
- * whatever years {@link listActivityYears} produced — newest first.
+ * Vertical year picker. The list is data-driven — whatever years the caller
+ * passes — rendered newest first. Reused by the activity calendar and the
+ * Journal browsing view.
  */
-export const YearNav = ({ years, selected, onSelect }: YearNavProps) => {
+export const YearNav = ({
+  years,
+  selected,
+  onSelect,
+  ariaLabel = "Activity year",
+}: YearNavProps) => {
   return (
     <nav
-      aria-label="Activity year"
+      aria-label={ariaLabel}
       className="flex shrink-0 flex-col gap-1 sm:w-20"
     >
       {[...years].reverse().map((year) => (
