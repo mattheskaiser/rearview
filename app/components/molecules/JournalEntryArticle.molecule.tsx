@@ -11,7 +11,8 @@ type JournalEntryArticleProps = {
 };
 
 /**
- * One browsable journal entry: its date as a heading in the required format
+ * One browsable journal entry on a Journal Archive year page: its date as a
+ * heading in the required format
  * ("Monday, August 31st 2026"), and — when expanded — the original entry
  * rendered from its stored TipTap document, so paragraphs, line breaks, lists,
  * bold and italic all show exactly as written.

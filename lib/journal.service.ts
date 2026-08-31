@@ -149,8 +149,8 @@ const EMPTY_DOC: JSONContent = { type: "doc", content: [] };
 
 /**
  * Years `userId` has written in, newest first, each with an entry count. Backs
- * the year picker on the Journal tab. Derived from the (cheap) list of entry
- * dates rather than a second aggregate query.
+ * the Journal Archive on the Memories page. Derived from the (cheap) list of
+ * entry dates rather than a second aggregate query.
  */
 export async function listJournalYears(
   userId: string,

@@ -11,8 +11,7 @@ type YearNavProps = {
 
 /**
  * Vertical year picker. The list is data-driven — whatever years the caller
- * passes — rendered newest first. Reused by the activity calendar and the
- * Journal browsing view.
+ * passes — rendered newest first. Used by the activity calendar.
  */
 export const YearNav = ({
   years,

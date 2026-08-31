@@ -64,7 +64,7 @@ test.describe.serial("save and manage a memory", () => {
   });
 });
 
-test("an AI search keeps running and its state survives a tab switch", async ({
+test("an AI search keeps running and its state survives opening the Journal Archive", async ({
   authedPage: page,
 }) => {
   const placeholder = "Ask your journal a question…";
@@ -82,10 +82,15 @@ test("an AI search keeps running and its state survives a tab switch", async ({
     timeout: 120_000,
   });
 
-  // Leave for the Journal tab and come back — mid-flight.
-  await page.getByRole("tab", { name: "Journal" }).click();
-  await expect(panel).toBeHidden();
-  await page.getByRole("tab", { name: "Reflect" }).click();
+  // Open a year from the archive and come back — mid-flight. The reflection
+  // stream lives in the /memories route layout, so it keeps running.
+  await page
+    .getByRole("region", { name: "Journal Archive" })
+    .getByRole("link", { name: /Journal 2023/ })
+    .click();
+  await expect(page).toHaveURL(/\/memories\/journal\/2023$/);
+  await page.getByRole("link", { name: "Back to Memories" }).click();
+  await expect(page).toHaveURL(/\/memories$/);
 
   // The search was not reset: evidence is still there and the answer either is
   // still streaming or has finished — never gone.

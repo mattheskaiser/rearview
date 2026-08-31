@@ -1,79 +1,44 @@
-"use client";
-import { useState } from "react";
-
-import { TabNav, type TabItem } from "@/app/components/molecules/TabNav.molecule";
-import { JournalBrowser } from "@/app/components/organisms/JournalBrowser.organism";
+import { JournalArchive } from "@/app/components/organisms/JournalArchive.organism";
 import { MemoryList } from "@/app/components/organisms/MemoryList.organism";
 import { ReflectionPanel } from "@/app/components/organisms/ReflectionPanel.organism";
 import { PageTemplate } from "@/app/components/templates/Page.template";
-import { ReflectionProvider } from "@/app/hooks/reflection-context";
-import type {
-  JournalEntryView,
-  JournalYearSummary,
-} from "@/lib/journal.service";
+import type { JournalYearSummary } from "@/lib/journal.service";
 import type { SavedMemory } from "@/lib/types/memory";
 
 type MemoriesTemplateProps = {
   savedMemories: SavedMemory[];
   journalYears: JournalYearSummary[];
-  initialYear: number | null;
-  initialEntries: JournalEntryView[];
 };
 
-type TabId = "reflect" | "journal";
-
-const TABS: readonly TabItem<TabId>[] = [
-  { id: "reflect", label: "Reflect" },
-  { id: "journal", label: "Journal" },
-];
-
 /**
- * The Memories page: ask the journal a question (Reflect) or browse past
- * entries by year (Journal). Both panels stay mounted and the reflection stream
- * lives in a provider above the tabs, so an in-flight AI search — and the
- * Journal tab's selection — survive switching between them.
+ * The Memories page. Reflect stays the primary experience — ask the journal a
+ * question, save the answer. Below it, the Journal Archive is its own distinct
+ * section: one book-like card per year, each opening that year at
+ * `/memories/journal/[year]`. The reflection stream lives in the route layout,
+ * so an in-flight AI search keeps running when the user opens a year and back.
  */
 export const MemoriesTemplate = ({
   savedMemories,
   journalYears,
-  initialYear,
-  initialEntries,
 }: MemoriesTemplateProps) => {
-  const [tab, setTab] = useState<TabId>("reflect");
-
   return (
     <PageTemplate
       heading="Memories"
       subtitle={
         <p className="text-sm text-muted-foreground">
           Ask a question and Rearview synthesizes an answer from your journal, or
-          browse everything you have written.
+          open a year from the archive to read it back.
         </p>
       }
     >
-      <ReflectionProvider>
-        <div className="flex flex-col gap-6">
-          <TabNav
-            tabs={TABS}
-            active={tab}
-            onChange={setTab}
-            ariaLabel="Memories sections"
-          />
+      <div className="flex flex-col gap-14">
+        <section className="flex flex-col gap-10">
+          <ReflectionPanel />
+          <MemoryList memories={savedMemories} />
+        </section>
 
-          <div hidden={tab !== "reflect"} className="flex flex-col gap-10">
-            <ReflectionPanel />
-            <MemoryList memories={savedMemories} />
-          </div>
-
-          <div hidden={tab !== "journal"}>
-            <JournalBrowser
-              years={journalYears}
-              initialYear={initialYear}
-              initialEntries={initialEntries}
-            />
-          </div>
-        </div>
-      </ReflectionProvider>
+        <JournalArchive years={journalYears} />
+      </div>
     </PageTemplate>
   );
 };
