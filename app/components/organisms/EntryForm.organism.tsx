@@ -32,6 +32,14 @@ export const EntryForm = ({ dateStr, initialContent }: EntryFormProps) => {
   const [resetSignal, setResetSignal] = useState(0);
   const [pending, startTransition] = useTransition();
 
+  // Clears a lingering "Entry saved." (or error) message as soon as the user
+  // edits again, so it never keeps claiming the *current* text is saved once
+  // it has diverged from what's actually persisted.
+  const handleDocChange = (next: JSONContent) => {
+    setDoc(next);
+    setStatus(null);
+  };
+
   const goToDate = (date: Date | undefined) => {
     if (!date) return;
     setStatus(null);
@@ -74,7 +82,7 @@ export const EntryForm = ({ dateStr, initialContent }: EntryFormProps) => {
       />
       <RichTextEditor
         content={initialContent ?? undefined}
-        onChange={setDoc}
+        onChange={handleDocChange}
         ariaLabel="Journal entry"
         resetSignal={resetSignal}
       />
