@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { LogoutButton } from "@/app/components/molecules/LogoutButton.molecule";
+import { ThemeToggle } from "@/app/components/molecules/ThemeToggle.molecule";
 import { cn } from "@/lib/utils";
 
 type SidebarItem = { label: string; href: string };
@@ -40,12 +41,17 @@ export const Sidebar = ({ items, accountEmail }: SidebarProps) => {
         );
       })}
 
-      <div className="mt-auto flex flex-col gap-1 pt-3">
-        {accountEmail ? (
-          <span className="truncate px-2 text-xs text-muted-foreground">
-            {accountEmail}
-          </span>
-        ) : null}
+      <div className="mt-auto flex flex-col gap-2 pt-3">
+        <div className="flex items-center justify-between gap-2 px-2">
+          {accountEmail ? (
+            <span className="truncate text-xs text-muted-foreground">
+              {accountEmail}
+            </span>
+          ) : (
+            <span />
+          )}
+          <ThemeToggle />
+        </div>
         <LogoutButton />
       </div>
     </nav>
