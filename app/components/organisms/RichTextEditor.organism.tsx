@@ -46,6 +46,9 @@ export const RichTextEditor = ({
     editorProps: {
       attributes: {
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
+        // Native, fully-offline spell check (CLAUDE.md > Privacy): the browser
+        // flags misspellings and "Add to dictionary" is the per-profile ignore.
+        spellcheck: "true",
         // The surface owns its default height; the wrapper caps and scrolls it.
         class: cn(PROSE_CLASS, "min-h-52 outline-none", className),
       },

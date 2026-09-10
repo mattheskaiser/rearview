@@ -20,6 +20,20 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Spell check
+
+The journal editor uses the browser's built-in spell checker (fully offline —
+no text ever leaves the machine). Misspelled words get a red underline as you
+type; right-click a word for suggestions, or choose **Add to dictionary** to
+stop it being flagged (persists per browser profile).
+
+For English + German, enable both languages for spell check in the browser:
+
+- **Chrome/Edge:** Settings → Languages → add *English* and *Deutsch*, then tick
+  "Use this language to check spelling" for each.
+- **Firefox:** right-click the editor → Languages → add the dictionaries, then
+  enable "Check Spelling".
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
