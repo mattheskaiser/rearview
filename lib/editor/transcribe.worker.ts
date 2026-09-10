@@ -10,6 +10,7 @@ import { pipeline } from "@huggingface/transformers";
 type TranscribeRequest = {
   audio: Float32Array;
   model: string;
+  device: string;
   language: string | null;
 };
 
@@ -33,23 +34,55 @@ type Transcriber = (
 ) => Promise<{ text: string } | { text: string }[]>;
 
 let transcriberPromise: Promise<Transcriber> | null = null;
-let loadedModel: string | null = null;
+let loadedKey: string | null = null;
 
-function getTranscriber(model: string): Promise<Transcriber> {
-  if (!transcriberPromise || loadedModel !== model) {
-    loadedModel = model;
-    transcriberPromise = pipeline(
-      "automatic-speech-recognition",
-      model,
-    ) as unknown as Promise<Transcriber>;
+/**
+ * Load the ASR pipeline. `q4` weights hit an ONNX Runtime bug on WASM
+ * ("Missing required scale … MatMulNBits"), so the decoder is forced to `q8`
+ * (or `fp32` on WebGPU). WebGPU is tried first unless a device is pinned, then
+ * we fall back to WASM.
+ */
+async function load(model: string, device: string): Promise<Transcriber> {
+  const attempts: {
+    device: "webgpu" | "wasm";
+    dtype: Record<string, "fp32" | "q8">;
+  }[] =
+    device === "wasm"
+      ? [{ device: "wasm", dtype: { encoder_model: "fp32", decoder_model_merged: "q8" } }]
+      : device === "webgpu"
+        ? [{ device: "webgpu", dtype: { encoder_model: "fp32", decoder_model_merged: "fp32" } }]
+        : [
+            { device: "webgpu", dtype: { encoder_model: "fp32", decoder_model_merged: "fp32" } },
+            { device: "wasm", dtype: { encoder_model: "fp32", decoder_model_merged: "q8" } },
+          ];
+
+  let lastError: unknown;
+  for (const attempt of attempts) {
+    try {
+      return (await pipeline("automatic-speech-recognition", model, {
+        device: attempt.device,
+        dtype: attempt.dtype,
+      })) as unknown as Transcriber;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Could not load the speech model.");
+}
+
+function getTranscriber(model: string, device: string): Promise<Transcriber> {
+  const key = `${model}::${device}`;
+  if (!transcriberPromise || loadedKey !== key) {
+    loadedKey = key;
+    transcriberPromise = load(model, device);
   }
   return transcriberPromise;
 }
 
 scope.addEventListener("message", async (event) => {
-  const { audio, model, language } = event.data;
+  const { audio, model, device, language } = event.data;
   try {
-    const transcriber = await getTranscriber(model);
+    const transcriber = await getTranscriber(model, device);
     const output = await transcriber(audio, {
       chunk_length_s: 30,
       stride_length_s: 5,
