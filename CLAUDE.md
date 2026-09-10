@@ -572,11 +572,15 @@ Keep commits focused.
 
 Do not mix unrelated changes.
 
-Use descriptive commit messages.
+Use descriptive commit messages using the following pattern: feat(entries): implement fix to prevent race condition
 
 A commit should represent one coherent unit of work.
 
 Do not commit secrets or environment files containing credentials.
+
+DO not co author Claaude, just me on there
+
+Don't create new or switch branches, sta ywhatever branch you're on
 
 ## Scope Control
 
