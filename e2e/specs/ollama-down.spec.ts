@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures/app.fixture";
 
-import { gotoEntry, writeAndSave } from "../support/entry-editor";
+import { gotoEntry, savedEntry, writeAndSave } from "../support/entry-editor";
 
 /**
  * Runs against the `ollama-down` project — a second app instance whose
@@ -20,7 +20,7 @@ test("writing and saving an entry still works", async ({ authedPage: page }) => 
   await writeAndSave(page, "Wrote this while the local AI was offline. Still saved.");
 
   await gotoEntry(page, "2020-05-05");
-  await expect(page.getByLabel("Journal entry")).toContainText("Still saved.");
+  await expect(savedEntry(page)).toContainText("Still saved.");
 });
 
 test("the overview page still loads", async ({ authedPage: page }) => {

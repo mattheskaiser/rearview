@@ -1,17 +1,39 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Helpers for driving the real Tiptap editor on the Entries page. Used only by
  * `entries-authoring.spec.ts`; the retrieval corpus is seeded through Prisma.
+ *
+ * A date that already has an entry opens read-only (`SavedEntryCard`), so the
+ * editor must be revealed with "Edit entry" before typing.
  */
 
 const EDITOR = "Journal entry";
 const DATE_FIELD = "Date of entry";
+const SAVED = "Saved entry for this date";
 
 /** Navigate to the entry for `dateStr` (`YYYY-MM-DD`). */
 export async function gotoEntry(page: Page, dateStr: string): Promise<void> {
   await page.goto(`/entries?date=${dateStr}`);
-  await expect(page.getByLabel(EDITOR)).toBeVisible();
+  await expect(
+    page.getByLabel(EDITOR).or(page.getByRole("button", { name: "Edit entry" })),
+  ).toBeVisible();
+}
+
+/** The read-only saved entry region for the current date. */
+export function savedEntry(page: Page): Locator {
+  return page.getByRole("region", { name: SAVED });
+}
+
+/** Reveal the editor: click "Edit entry" when the date already has an entry. */
+export async function openEditor(page: Page): Promise<Locator> {
+  const editButton = page.getByRole("button", { name: "Edit entry" });
+  if (await editButton.isVisible().catch(() => false)) {
+    await editButton.click();
+  }
+  const editor = page.getByLabel(EDITOR);
+  await editor.waitFor();
+  return editor;
 }
 
 /** Type a date into the date field (M/D/YYYY) and commit it. */
@@ -23,7 +45,7 @@ export async function typeDate(page: Page, mdy: string): Promise<void> {
 
 /** Replace the editor contents with `text` and save; asserts the success line. */
 export async function writeAndSave(page: Page, text: string): Promise<void> {
-  const editor = page.getByLabel(EDITOR);
+  const editor = await openEditor(page);
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Delete");

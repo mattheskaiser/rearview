@@ -1,10 +1,10 @@
 "use client";
 import type { JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { useEffect, useRef } from "react";
 
 import { EditorToolbar } from "@/app/components/molecules/EditorToolbar.molecule";
 import { editorExtensions } from "@/lib/editor/editor-extensions";
+import { toPlainDocument } from "@/lib/editor/plain-document";
 import { PROSE_CLASS } from "@/lib/editor/prose";
 import { cn } from "@/lib/utils";
 
@@ -16,12 +16,6 @@ type RichTextEditorProps = {
   ariaLabel?: string;
   /** Extra classes for the editing surface (e.g. a shorter `min-h-*`). */
   className?: string;
-  /**
-   * Bump this to imperatively clear the editor — e.g. after a successful save,
-   * so the form returns to its empty state without losing anything on failure.
-   * The first value is ignored so existing content survives mount.
-   */
-  resetSignal?: number;
 };
 
 /**
@@ -36,14 +30,14 @@ type RichTextEditorProps = {
  * stretching the page excessively").
  *
  * Deliberately domain-agnostic: it knows nothing about journal entries or
- * goals. Callers own persistence and any surrounding form state.
+ * goals. Callers own persistence and any surrounding form state. Callers clear
+ * the editor by unmounting it, not through an imperative signal.
  */
 export const RichTextEditor = ({
   content,
   onChange,
   ariaLabel,
   className,
-  resetSignal,
 }: RichTextEditorProps) => {
   const editor = useEditor({
     extensions: editorExtensions,
@@ -56,20 +50,10 @@ export const RichTextEditor = ({
         class: cn(PROSE_CLASS, "min-h-52 outline-none", className),
       },
     },
-    onUpdate: ({ editor: e }) => onChange?.(e.getJSON()),
+    // `toPlainDocument` strips the null-prototype attrs TipTap emits (e.g. on
+    // `orderedList`) so the document survives a server-action boundary.
+    onUpdate: ({ editor: e }) => onChange?.(toPlainDocument(e.getJSON())),
   });
-
-  const seenReset = useRef(false);
-  useEffect(() => {
-    if (!editor) return;
-    if (!seenReset.current) {
-      seenReset.current = true;
-      return;
-    }
-    // No emitUpdate: the caller has already reset its own draft state to empty,
-    // and firing onChange here would race it back to a non-null empty doc.
-    editor.commands.clearContent(false);
-  }, [editor, resetSignal]);
 
   if (!editor) return null;
 

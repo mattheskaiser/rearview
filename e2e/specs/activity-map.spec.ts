@@ -34,7 +34,9 @@ test("a seeded date is a filled cell linking to its entry", async ({ page }) => 
   await expect(cell).toHaveAttribute("title", /Journal entry/);
   await cell.click();
   await expect(page).toHaveURL(/\/entries\?date=2024-07-12/);
-  await expect(page.getByLabel("Journal entry")).toContainText("España");
+  await expect(
+    page.getByRole("region", { name: "Saved entry for this date" }),
+  ).toContainText("España");
 });
 
 test("an empty past date is a non-filled cell", async ({ page }) => {

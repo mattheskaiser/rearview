@@ -1,12 +1,22 @@
 import { test, expect } from "../fixtures/app.fixture";
 import { toJournalDate } from "@/lib/time/journal-date";
 
-import { gotoEntry, saveEntry, typeDate, writeAndSave } from "../support/entry-editor";
+import {
+  gotoEntry,
+  openEditor,
+  savedEntry,
+  saveEntry,
+  typeDate,
+  writeAndSave,
+} from "../support/entry-editor";
 
 /**
  * Journal authoring through the real editor (plan §12: entries-authoring ~9).
  * All dates are in 2020–2021, outside the retrieval corpus, so these never
  * perturb the seeded evidence.
+ *
+ * A date that already has an entry opens read-only; the editor is revealed with
+ * "Edit entry" (see `openEditor`).
  */
 
 const countFor = (prisma: import("@prisma/client").PrismaClient, date: string) =>
@@ -17,7 +27,7 @@ test("writes a new entry for a backdated date", async ({ authedPage: page }) => 
   await writeAndSave(page, "Backdated from an old paper journal.");
 
   await gotoEntry(page, "2021-01-04");
-  await expect(page.getByLabel("Journal entry")).toContainText(
+  await expect(savedEntry(page)).toContainText(
     "Backdated from an old paper journal.",
   );
 });
@@ -39,7 +49,7 @@ test("rejects a future date", async ({ authedPage: page }) => {
 
 test("bold text round-trips through save and reload", async ({ authedPage: page }) => {
   await gotoEntry(page, "2021-04-10");
-  const editor = page.getByLabel("Journal entry");
+  const editor = await openEditor(page);
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Delete");
@@ -49,12 +59,12 @@ test("bold text round-trips through save and reload", async ({ authedPage: page 
   await saveEntry(page);
 
   await gotoEntry(page, "2021-04-10");
-  await expect(page.getByLabel("Journal entry").locator("strong")).toHaveText("strong");
+  await expect(savedEntry(page).locator("strong")).toHaveText("strong");
 });
 
 test("italic text round-trips through save and reload", async ({ authedPage: page }) => {
   await gotoEntry(page, "2021-05-11");
-  const editor = page.getByLabel("Journal entry");
+  const editor = await openEditor(page);
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Delete");
@@ -64,12 +74,12 @@ test("italic text round-trips through save and reload", async ({ authedPage: pag
   await saveEntry(page);
 
   await gotoEntry(page, "2021-05-11");
-  await expect(page.getByLabel("Journal entry").locator("em")).toHaveText("leaning");
+  await expect(savedEntry(page).locator("em")).toHaveText("leaning");
 });
 
 test("a bulleted list round-trips through save and reload", async ({ authedPage: page }) => {
   await gotoEntry(page, "2021-06-20");
-  const editor = page.getByLabel("Journal entry");
+  const editor = await openEditor(page);
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Delete");
@@ -80,27 +90,14 @@ test("a bulleted list round-trips through save and reload", async ({ authedPage:
   await saveEntry(page);
 
   await gotoEntry(page, "2021-06-20");
-  await expect(page.getByLabel("Journal entry").locator("li")).toHaveCount(2);
-});
-
-test("the editor clears after a successful save", async ({ authedPage: page }) => {
-  await gotoEntry(page, "2021-10-05");
-  const editor = page.getByLabel("Journal entry");
-  await editor.click();
-  await editor.pressSequentially("A quick note to file away.");
-  await saveEntry(page);
-
-  // Form is back to empty for the next entry — but the entry is safely stored.
-  await expect(editor).not.toContainText("A quick note to file away.");
-  await gotoEntry(page, "2021-10-05");
-  await expect(editor).toContainText("A quick note to file away.");
+  await expect(savedEntry(page).locator("li")).toHaveCount(2);
 });
 
 test("a numbered list round-trips through save and reload", async ({
   authedPage: page,
 }) => {
   await gotoEntry(page, "2021-11-12");
-  const editor = page.getByLabel("Journal entry");
+  const editor = await openEditor(page);
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Delete");
@@ -111,7 +108,31 @@ test("a numbered list round-trips through save and reload", async ({
   await saveEntry(page);
 
   await gotoEntry(page, "2021-11-12");
-  await expect(page.getByLabel("Journal entry").locator("ol li")).toHaveCount(2);
+  await expect(savedEntry(page).locator("ol li")).toHaveCount(2);
+});
+
+test("a submitted entry does not return to the composer", async ({
+  authedPage: page,
+}) => {
+  await gotoEntry(page, "2021-10-05");
+  await writeAndSave(page, "A quick note to file away.");
+
+  // Right after saving: read-only, no editable surface holding the text.
+  await expect(savedEntry(page)).toContainText("A quick note to file away.");
+  await expect(page.getByLabel("Journal entry")).toHaveCount(0);
+
+  // Navigate away and back — still read-only, editor still empty of it.
+  await page.goto("/overview");
+  await gotoEntry(page, "2021-10-05");
+  await expect(savedEntry(page)).toContainText("A quick note to file away.");
+  await expect(page.getByLabel("Journal entry")).toHaveCount(0);
+
+  // A fresh date opens an empty editor.
+  await gotoEntry(page, "2021-10-06");
+  await expect(page.getByLabel("Journal entry")).toBeVisible();
+  await expect(page.getByLabel("Journal entry")).not.toContainText(
+    "A quick note to file away.",
+  );
 });
 
 test("editing an entry updates it in place", async ({ authedPage: page, prisma }) => {
@@ -121,18 +142,15 @@ test("editing an entry updates it in place", async ({ authedPage: page, prisma }
 
   expect(await countFor(prisma, "2021-07-15")).toBe(1);
   await gotoEntry(page, "2021-07-15");
-  const editor = page.getByLabel("Journal entry");
-  await expect(editor).toContainText("Second version, fully rewritten.");
-  await expect(editor).not.toContainText("First version");
+  await expect(savedEntry(page)).toContainText("Second version, fully rewritten.");
+  await expect(savedEntry(page)).not.toContainText("First version");
 });
 
 test("one entry per calendar day", async ({ authedPage: page, prisma }) => {
   await gotoEntry(page, "2021-08-08");
   await writeAndSave(page, "Only entry for this date.");
   await gotoEntry(page, "2021-08-08");
-  await expect(
-    page.getByRole("button", { name: /update entry/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit entry" })).toBeVisible();
   await writeAndSave(page, "Still only one row after a second save.");
   expect(await countFor(prisma, "2021-08-08")).toBe(1);
 });
