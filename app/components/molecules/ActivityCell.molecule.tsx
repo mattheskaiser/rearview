@@ -27,9 +27,15 @@ export const ActivityCell = ({ day }: { day: ActivityDay }) => {
     );
   }
 
+  // A day with an entry opens the Journal Archive for that year (entries are
+  // read and edited there); an empty past day opens the composer for that date.
+  const href = day.filled
+    ? `/memories/journal/${day.date.slice(0, 4)}`
+    : `/entries?date=${day.date}`;
+
   return (
     <Link
-      href={`/entries?date=${day.date}`}
+      href={href}
       title={label}
       aria-label={label.replace("\n", " — ")}
       className={cn(

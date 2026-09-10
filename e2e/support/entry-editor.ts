@@ -1,39 +1,22 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 /**
- * Helpers for driving the real Tiptap editor on the Entries page. Used only by
- * `entries-authoring.spec.ts`; the retrieval corpus is seeded through Prisma.
+ * Helpers for driving the real Tiptap editor.
  *
- * A date that already has an entry opens read-only (`SavedEntryCard`), so the
- * editor must be revealed with "Edit entry" before typing.
+ * The Entries page is a blank composer only — a submitted entry never returns to
+ * it. Existing entries are read and edited from the Journal Archive
+ * (`/memories/journal/[year]`), where each entry is an accordion with a "⋯"
+ * menu (Edit / Delete).
  */
 
 const EDITOR = "Journal entry";
+const EDIT_EDITOR = "Edit journal entry";
 const DATE_FIELD = "Date of entry";
-const SAVED = "Saved entry for this date";
 
-/** Navigate to the entry for `dateStr` (`YYYY-MM-DD`). */
+/** Navigate to the blank composer for `dateStr` (`YYYY-MM-DD`). */
 export async function gotoEntry(page: Page, dateStr: string): Promise<void> {
   await page.goto(`/entries?date=${dateStr}`);
-  await expect(
-    page.getByLabel(EDITOR).or(page.getByRole("button", { name: "Edit entry" })),
-  ).toBeVisible();
-}
-
-/** The read-only saved entry region for the current date. */
-export function savedEntry(page: Page): Locator {
-  return page.getByRole("region", { name: SAVED });
-}
-
-/** Reveal the editor: click "Edit entry" when the date already has an entry. */
-export async function openEditor(page: Page): Promise<Locator> {
-  const editButton = page.getByRole("button", { name: "Edit entry" });
-  if (await editButton.isVisible().catch(() => false)) {
-    await editButton.click();
-  }
-  const editor = page.getByLabel(EDITOR);
-  await editor.waitFor();
-  return editor;
+  await expect(page.getByLabel(EDITOR)).toBeVisible();
 }
 
 /** Type a date into the date field (M/D/YYYY) and commit it. */
@@ -43,18 +26,70 @@ export async function typeDate(page: Page, mdy: string): Promise<void> {
   await field.press("Enter");
 }
 
-/** Replace the editor contents with `text` and save; asserts the success line. */
-export async function writeAndSave(page: Page, text: string): Promise<void> {
-  const editor = await openEditor(page);
+async function replaceEditor(page: Page, editor: Locator, text: string) {
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Delete");
   await editor.pressSequentially(text);
-  await saveEntry(page);
 }
 
-/** Click Save/Update and wait for the confirmation. */
-export async function saveEntry(page: Page): Promise<void> {
-  await page.getByRole("button", { name: /save entry|update entry/i }).click();
-  await expect(page.getByText("Entry saved.")).toBeVisible();
+/** Write a fresh entry for the current composer date and save it. */
+export async function writeAndSave(page: Page, text: string): Promise<void> {
+  const editor = page.getByLabel(EDITOR);
+  await replaceEditor(page, editor, text);
+  await page.getByRole("button", { name: /save entry/i }).click();
+  await expect(page.getByText("Entry saved")).toBeVisible();
+}
+
+/** Go to a year page of the Journal Archive. */
+export async function gotoArchiveYear(page: Page, year: number): Promise<void> {
+  await page.goto(`/memories/journal/${year}`);
+  await expect(
+    page.getByRole("heading", { name: `Journal ${year}` }),
+  ).toBeVisible();
+}
+
+/** The accordion article for the entry whose heading contains `dateText`. */
+export function archiveEntry(page: Page, dateText: string): Locator {
+  return page.getByRole("article").filter({ hasText: dateText });
+}
+
+/** Expand an archive entry and return its content region. */
+export async function openArchiveEntry(
+  page: Page,
+  dateText: string,
+): Promise<Locator> {
+  const article = archiveEntry(page, dateText);
+  const toggle = article.getByRole("button", { name: dateText, exact: false });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+  return article;
+}
+
+/** Edit an archive entry's text in place and save. */
+export async function editArchiveEntry(
+  page: Page,
+  dateText: string,
+  text: string,
+): Promise<void> {
+  const article = archiveEntry(page, dateText);
+  await article.getByRole("button", { name: "Entry actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
+  const editor = article.getByLabel(EDIT_EDITOR);
+  await replaceEditor(page, editor, text);
+  await article.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Entry updated")).toBeVisible();
+}
+
+/** Delete an archive entry via its "⋯" menu, confirming the prompt. */
+export async function deleteArchiveEntry(
+  page: Page,
+  dateText: string,
+): Promise<void> {
+  const article = archiveEntry(page, dateText);
+  await article.getByRole("button", { name: "Entry actions" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await article.getByRole("button", { name: "Delete entry" }).click();
+  await expect(page.getByText("Entry deleted")).toBeVisible();
 }

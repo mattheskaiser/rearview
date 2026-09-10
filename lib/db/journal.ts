@@ -28,7 +28,7 @@ export type JournalEntryWriteData = {
   contentHash: string;
 };
 
-/** Upsert by (user, calendar date) — one entry per `journalDate` per user. */
+/** Upsert by (user, calendar date). Used by the E2E seed for idempotency. */
 export function upsertEntryByDate(
   data: JournalEntryWriteData,
 ): Promise<JournalEntry> {
@@ -38,6 +38,50 @@ export function upsertEntryByDate(
     create: data,
     update: rest,
   });
+}
+
+/**
+ * Create one entry. The `@@unique([userId, journalDate])` index still enforces
+ * one entry per calendar date per user — a second create for the same date
+ * rejects with Prisma error `P2002`, which the service turns into a friendly
+ * "edit it in the archive" message.
+ */
+export function createJournalEntry(
+  data: JournalEntryWriteData,
+): Promise<JournalEntry> {
+  return prisma.journalEntry.create({ data });
+}
+
+/** Replace an entry's content, scoped to its owner. Returns rows affected (0 or 1). */
+export async function updateEntryContent(
+  userId: string,
+  id: string,
+  data: {
+    content: Prisma.InputJsonValue;
+    contentText: string;
+    contentHash: string;
+  },
+): Promise<number> {
+  const { count } = await prisma.journalEntry.updateMany({
+    where: { id, userId },
+    data,
+  });
+  return count;
+}
+
+/**
+ * Delete one entry by id, scoped to its owner. Returns false when nothing
+ * matched. `EntryChunk` is `onDelete: Cascade`, so the entry's chunks and their
+ * embeddings go with it at the database level.
+ */
+export async function deleteEntryById(
+  userId: string,
+  id: string,
+): Promise<boolean> {
+  const { count } = await prisma.journalEntry.deleteMany({
+    where: { id, userId },
+  });
+  return count > 0;
 }
 
 /** One entry by id, scoped to its owner. */
@@ -67,21 +111,6 @@ export function getEntriesByDates(
     where: { userId, journalDate: { in: journalDates } },
     select: { id: true, journalDate: true },
   });
-}
-
-/**
- * Delete one entry by (user, calendar date). Returns false when nothing
- * matched. The `EntryChunk` FK is `onDelete: Cascade`, so the entry's chunks
- * and their embeddings go with it at the database level.
- */
-export async function deleteEntryByDate(
-  userId: string,
-  journalDate: Date,
-): Promise<boolean> {
-  const { count } = await prisma.journalEntry.deleteMany({
-    where: { userId, journalDate },
-  });
-  return count > 0;
 }
 
 /**

@@ -46,6 +46,14 @@ export const journalEntryInputSchema = z.object({
 
 export type JournalEntryInput = z.infer<typeof journalEntryInputSchema>;
 
+/** Editing an existing entry from the Journal Archive — target by id, no date. */
+export const journalEntryUpdateSchema = z.object({
+  entryId: z.string().min(1, "Missing entry id"),
+  content: journalContentSchema,
+});
+
+export type JournalEntryUpdateInput = z.infer<typeof journalEntryUpdateSchema>;
+
 /** Throws if the document has no meaningful plain text. */
 export function assertNonEmptyPlainText(text: string): void {
   if (text.trim().length === 0) {

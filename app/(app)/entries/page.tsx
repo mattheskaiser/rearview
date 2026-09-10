@@ -1,7 +1,7 @@
 import { EntryForm } from "@/app/components/organisms/EntryForm.organism";
 import { PageTemplate } from "@/app/components/templates/Page.template";
 import { requireUserId } from "@/lib/auth/session";
-import { getEntryContentForDate } from "@/lib/journal.service";
+import { hasJournalEntryOnDate } from "@/lib/journal.service";
 import {
   formatJournalDate,
   isFutureJournalDate,
@@ -33,15 +33,11 @@ export default async function EntriesPage({
   const userId = await requireUserId();
   const { date } = await searchParams;
   const dateStr = resolveDate(date);
-  const initialContent = await getEntryContentForDate(userId, dateStr);
+  const dateHasEntry = await hasJournalEntryOnDate(userId, dateStr);
 
   return (
     <PageTemplate heading="Write an entry">
-      <EntryForm
-        key={dateStr}
-        dateStr={dateStr}
-        initialContent={initialContent}
-      />
+      <EntryForm key={dateStr} dateStr={dateStr} dateHasEntry={dateHasEntry} />
     </PageTemplate>
   );
 }

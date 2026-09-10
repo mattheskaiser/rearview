@@ -1,24 +1,22 @@
 "use client";
 import type { JSONContent } from "@tiptap/core";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { FormMessage } from "@/app/components/atoms/FormMessage.atom";
 import { DatePicker } from "@/app/components/molecules/DatePicker.molecule";
-import { SavedEntryCard } from "@/app/components/molecules/SavedEntryCard.molecule";
 import { RichTextEditor } from "@/app/components/organisms/RichTextEditor.organism";
 import { saveEntryAction } from "@/app/(app)/entries/actions";
 import { toLocalJournalDateString } from "@/lib/time/journal-date";
+import { toastError, toastSuccess } from "@/lib/ui/toast";
 import { Button } from "@/components/ui/button";
 
 type EntryFormProps = {
   /** `YYYY-MM-DD` currently being written. */
   dateStr: string;
-  /** Existing document for that date, or null for a new entry. */
-  initialContent: JSONContent | null;
+  /** Whether this user already has an entry on `dateStr`. */
+  dateHasEntry: boolean;
 };
-
-type Status = { tone: "success" | "error"; text: string };
 
 /** Parse `YYYY-MM-DD` into a local Date for the calendar widget. */
 function toLocalDate(dateStr: string): Date {
@@ -27,65 +25,46 @@ function toLocalDate(dateStr: string): Date {
 }
 
 /**
- * Entries page form. A date that already carries an entry opens read-only (via
- * `SavedEntryCard`); the editor appears only for a fresh date or after an
- * explicit "Edit entry". A saved entry therefore never comes back as editable
- * text in the composer — editing is always deliberate.
- *
- * The page keys this component by date, so navigating dates remounts it with
- * fresh `initialContent`.
+ * Entries page composer. Always a blank editor — a submitted entry never comes
+ * back into the box. There is one entry per calendar date: a date that already
+ * has an entry can still be typed in, but the save is refused with a toast that
+ * points to the Journal Archive, where existing entries are edited.
  */
-export const EntryForm = ({ dateStr, initialContent }: EntryFormProps) => {
+export const EntryForm = ({ dateStr, dateHasEntry }: EntryFormProps) => {
   const router = useRouter();
-  const [saved, setSaved] = useState<JSONContent | null>(initialContent);
-  const [editing, setEditing] = useState(initialContent == null);
   const [draft, setDraft] = useState<JSONContent | null>(null);
-  const [status, setStatus] = useState<Status | null>(null);
+  const [editorKey, setEditorKey] = useState(0);
   const [pending, startTransition] = useTransition();
 
   const goToDate = (date: Date | undefined) => {
     if (!date) return;
-    setStatus(null);
     router.push(`/entries?date=${toLocalJournalDateString(date)}`);
   };
 
-  const startEditing = () => {
-    setStatus(null);
-    setDraft(saved);
-    setEditing(true);
-  };
-
-  const cancelEditing = () => {
-    setStatus(null);
-    setDraft(null);
-    setEditing(false);
-  };
-
   const handleSubmit = () => {
-    setStatus(null);
+    if (dateHasEntry) {
+      toastError(
+        "You already have an entry for this date",
+        "Edit it from the Journal Archive on the Memories page.",
+      );
+      return;
+    }
     if (!draft) {
-      setStatus({ tone: "error", text: "Write something before saving." });
+      toastError("Nothing to save", "Write something before saving.");
       return;
     }
     startTransition(async () => {
       const result = await saveEntryAction({ journalDate: dateStr, content: draft });
       if (result.ok) {
-        // Back to the read-only view showing exactly what was stored. A failed
-        // save keeps the editor and everything the user typed.
-        setSaved(draft);
         setDraft(null);
-        setEditing(false);
-        setStatus({ tone: "success", text: "Entry saved." });
+        setEditorKey((key) => key + 1); // remount the editor empty
+        toastSuccess("Entry saved");
         router.refresh();
       } else {
-        setStatus({ tone: "error", text: result.error });
+        toastError("Could not save your entry", result.error);
       }
     });
   };
-
-  const message = status ? (
-    <FormMessage tone={status.tone}>{status.text}</FormMessage>
-  ) : null;
 
   return (
     <form
@@ -101,41 +80,30 @@ export const EntryForm = ({ dateStr, initialContent }: EntryFormProps) => {
         disableAfter={new Date()}
       />
 
-      {editing ? (
-        <>
-          <RichTextEditor
-            content={draft ?? undefined}
-            onChange={(doc) => {
-              setDraft(doc);
-              setStatus(null);
-            }}
-            ariaLabel="Journal entry"
-          />
-          <div className="flex items-center justify-between gap-4">
-            {message ?? <span />}
-            <div className="flex gap-2">
-              {saved ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={cancelEditing}
-                  disabled={pending}
-                >
-                  Cancel
-                </Button>
-              ) : null}
-              <Button type="submit" disabled={pending}>
-                {pending ? "Saving…" : saved ? "Update entry" : "Save entry"}
-              </Button>
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <SavedEntryCard doc={saved} onEdit={startEditing} />
-          {message}
-        </>
-      )}
+      {dateHasEntry ? (
+        <p className="text-sm text-muted-foreground">
+          You already have an entry for this date.{" "}
+          <Link
+            href={`/memories/journal/${dateStr.slice(0, 4)}`}
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Edit it in the Journal Archive
+          </Link>
+          .
+        </p>
+      ) : null}
+
+      <RichTextEditor
+        key={editorKey}
+        onChange={setDraft}
+        ariaLabel="Journal entry"
+      />
+
+      <div className="flex justify-end">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving…" : "Save entry"}
+        </Button>
+      </div>
     </form>
   );
 };

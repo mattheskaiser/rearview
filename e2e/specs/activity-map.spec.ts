@@ -28,18 +28,18 @@ test("year nav lists every year the corpus spans, newest selected", async ({ pag
   );
 });
 
-test("a seeded date is a filled cell linking to its entry", async ({ page }) => {
+test("a seeded date is a filled cell linking to its year in the archive", async ({ page }) => {
   await page.getByRole("button", { name: "2024" }).click();
-  const cell = page.locator('a[href="/entries?date=2024-07-12"]');
+  const cell = page.locator('a[href="/memories/journal/2024"]').first();
   await expect(cell).toHaveAttribute("title", /Journal entry/);
   await cell.click();
-  await expect(page).toHaveURL(/\/entries\?date=2024-07-12/);
+  await expect(page).toHaveURL(/\/memories\/journal\/2024$/);
   await expect(
-    page.getByRole("region", { name: "Saved entry for this date" }),
-  ).toContainText("España");
+    page.getByRole("heading", { name: "Journal 2024" }),
+  ).toBeVisible();
 });
 
-test("an empty past date is a non-filled cell", async ({ page }) => {
+test("an empty past date links to the composer for that date", async ({ page }) => {
   await page.getByRole("button", { name: "2024" }).click();
   const empty = page.locator('a[href="/entries?date=2024-01-10"]');
   await expect(empty).toHaveAttribute("title", /No journal entry/);
@@ -47,8 +47,10 @@ test("an empty past date is a non-filled cell", async ({ page }) => {
 
 test("selecting a year swaps the calendar", async ({ page }) => {
   await page.getByRole("button", { name: "2022" }).click();
-  await expect(page.locator('a[href="/entries?date=2022-01-08"]')).toBeVisible();
-  await expect(page.locator('a[href="/entries?date=2024-07-12"]')).toHaveCount(0);
+  await expect(
+    page.locator('a[href="/memories/journal/2022"]').first(),
+  ).toBeVisible();
+  await expect(page.locator('a[href="/memories/journal/2024"]')).toHaveCount(0);
 });
 
 test("the current year stops at today — no future cells", async ({ page }) => {
@@ -58,7 +60,8 @@ test("the current year stops at today — no future cells", async ({ page }) => 
   expect(await page.locator('span[title*="December 25, 2026"]').count()).toBe(0);
   await expect(page.locator("span.border-dashed")).toHaveCount(0);
 
-  // The corpus dates in 2026 are all present as real cells.
-  const filled2026 = page.locator('a.bg-primary[href^="/entries?date=2026-"]');
+  // The corpus dates in 2026 are all present as real, filled cells that open
+  // the 2026 archive.
+  const filled2026 = page.locator('a.bg-primary[href="/memories/journal/2026"]');
   await expect(filled2026).toHaveCount(countInYear(2026));
 });

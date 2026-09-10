@@ -5,11 +5,12 @@ import type { Prisma } from "@prisma/client";
 
 import { syncEntryEmbeddings } from "@/lib/ai/entry-embeddings.service";
 import {
-  deleteEntryByDate,
+  createJournalEntry,
+  deleteEntryById,
   getEntryByDate,
   listEntriesForYear,
   listEntryDates,
-  upsertEntryByDate,
+  updateEntryContent,
 } from "@/lib/db/journal";
 import { hashContentText } from "@/lib/editor/content-hash";
 import {
@@ -17,7 +18,10 @@ import {
   formatJournalHeading,
   toJournalDate,
 } from "@/lib/time/journal-date";
-import { journalEntryInputSchema } from "@/lib/validation/journal";
+import {
+  journalEntryInputSchema,
+  journalEntryUpdateSchema,
+} from "@/lib/validation/journal";
 
 /**
  * Application-logic boundary for journal entries (CLAUDE.md > Architecture).
@@ -39,12 +43,25 @@ export type SaveJournalEntryResult =
   | { ok: false; error: string };
 
 const SAVE_FAILED = "Could not save your entry. Please try again.";
+const DATE_TAKEN =
+  "You already have an entry for this date. Edit it from the Journal Archive.";
+
+/** True when a Prisma unique-constraint violation (`P2002`) was thrown. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
+}
 
 /**
- * Validate, fingerprint and persist one journal entry for `userId` (one row per
- * `journalDate` per user). On success `onSaved` is invoked synchronously so the
- * caller can schedule deferred embedding work; the entry is already committed
- * by then, so anything the caller does with it cannot roll the save back.
+ * Validate, fingerprint and persist a *new* journal entry for `userId`. There is
+ * one entry per calendar date per user: a date that already has an entry is
+ * rejected here (and again by the DB unique index) — editing happens from the
+ * Journal Archive. On success `onSaved` is invoked synchronously so the caller
+ * can schedule deferred embedding work; the entry is already committed by then.
  */
 export async function saveJournalEntry(
   userId: string,
@@ -63,7 +80,10 @@ export async function saveJournalEntry(
   const contentHash = hashContentText(content.contentText);
 
   try {
-    const entry = await upsertEntryByDate({
+    if (await getEntryByDate(userId, journalDate)) {
+      return { ok: false, error: DATE_TAKEN };
+    }
+    const entry = await createJournalEntry({
       userId,
       journalDate,
       content: content.content as Prisma.InputJsonValue,
@@ -79,8 +99,46 @@ export async function saveJournalEntry(
       ok: true,
       entry: { id: entry.id, journalDate: formatJournalDate(entry.journalDate) },
     };
-  } catch {
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, error: DATE_TAKEN };
     // Never surface DB internals / connection strings to the client.
+    return { ok: false, error: SAVE_FAILED };
+  }
+}
+
+/**
+ * Validate and apply an edit to an existing entry (Journal Archive). The
+ * journal date is fixed; only the document changes. A changed `contentHash`
+ * lets the deferred embedding sync invalidate and regenerate stale chunks.
+ */
+export async function updateJournalEntry(
+  userId: string,
+  input: unknown,
+  onSaved?: (entry: SavedEntryForEmbedding) => void,
+): Promise<SaveJournalEntryResult> {
+  const parsed = journalEntryUpdateSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Please check your entry.",
+    };
+  }
+
+  const { entryId, content } = parsed.data;
+  const contentHash = hashContentText(content.contentText);
+
+  try {
+    const updated = await updateEntryContent(userId, entryId, {
+      content: content.content as Prisma.InputJsonValue,
+      contentText: content.contentText,
+      contentHash,
+    });
+    if (updated === 0) {
+      return { ok: false, error: "That entry no longer exists." };
+    }
+    onSaved?.({ id: entryId, contentText: content.contentText, contentHash });
+    return { ok: true, entry: { id: entryId, journalDate: "" } };
+  } catch {
     return { ok: false, error: SAVE_FAILED };
   }
 }
@@ -106,29 +164,32 @@ export async function runEntryEmbeddingSync(
 }
 
 /**
- * Delete `userId`'s entry for `dateStr` (`YYYY-MM-DD`). The chunk / embedding
- * rows are removed with it by the `EntryChunk` cascade, so a deleted entry
- * leaves no searchable representation behind (session prompt > Chunking).
- * Returns false when there was no entry on that date.
+ * Delete `userId`'s entry `entryId`. The chunk / embedding rows are removed with
+ * it by the `EntryChunk` cascade, so a deleted entry leaves no searchable
+ * representation behind (session prompt > Chunking). Returns false when no such
+ * entry exists for this user.
  */
 export async function deleteJournalEntry(
   userId: string,
-  dateStr: string,
+  entryId: string,
 ): Promise<boolean> {
   try {
-    return await deleteEntryByDate(userId, toJournalDate(dateStr));
+    return await deleteEntryById(userId, entryId);
   } catch {
     return false;
   }
 }
 
-/** TipTap document stored for `userId` on `dateStr` (`YYYY-MM-DD`), or null. */
-export async function getEntryContentForDate(
+/**
+ * Whether `userId` already has an entry on `dateStr` (`YYYY-MM-DD`). Backs the
+ * Entries composer, which stays blank and blocks a second entry for a date that
+ * is already written (editing is done from the Journal Archive).
+ */
+export async function hasJournalEntryOnDate(
   userId: string,
   dateStr: string,
-): Promise<JSONContent | null> {
-  const entry = await getEntryByDate(userId, toJournalDate(dateStr));
-  return (entry?.content as JSONContent | undefined) ?? null;
+): Promise<boolean> {
+  return (await getEntryByDate(userId, toJournalDate(dateStr))) !== null;
 }
 
 /** One calendar year that has journal entries, with how many. */

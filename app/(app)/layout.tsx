@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { Sidebar } from "@/app/components/organisms/Sidebar.organism";
 import { getCurrentSession } from "@/lib/auth/session";
+import { Toaster } from "@/components/ui/toast";
 
 const navItems = [
   { label: "Overview", href: "/overview" },
@@ -28,6 +29,7 @@ export default async function AppLayout({
     <div className="flex min-h-screen flex-row">
       <Sidebar items={navItems} accountEmail={session.email} />
       <main className="flex-1">{children}</main>
+      <Toaster />
     </div>
   );
 }

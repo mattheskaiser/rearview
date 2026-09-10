@@ -1,6 +1,11 @@
 import { test, expect } from "../fixtures/app.fixture";
 
-import { gotoEntry, savedEntry, writeAndSave } from "../support/entry-editor";
+import {
+  gotoArchiveYear,
+  gotoEntry,
+  openArchiveEntry,
+  writeAndSave,
+} from "../support/entry-editor";
 
 /**
  * Runs against the `ollama-down` project — a second app instance whose
@@ -19,8 +24,9 @@ test("writing and saving an entry still works", async ({ authedPage: page }) => 
   await gotoEntry(page, "2020-05-05");
   await writeAndSave(page, "Wrote this while the local AI was offline. Still saved.");
 
-  await gotoEntry(page, "2020-05-05");
-  await expect(savedEntry(page)).toContainText("Still saved.");
+  await gotoArchiveYear(page, 2020);
+  const article = await openArchiveEntry(page, "May 5th 2020");
+  await expect(article).toContainText("Still saved.");
 });
 
 test("the overview page still loads", async ({ authedPage: page }) => {
