@@ -22,17 +22,19 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Spell check
 
-The journal editor uses the browser's built-in spell checker (fully offline —
-no text ever leaves the machine). Misspelled words get a red underline as you
-type; right-click a word for suggestions, or choose **Add to dictionary** to
-stop it being flagged (persists per browser profile).
+The journal editor has its own spell checker (English + German, fully offline —
+no text ever leaves the machine). It uses `nspell` with the Hunspell
+dictionaries, vendored into `public/dictionaries/` by
+`scripts/sync-dictionaries.mjs` (runs on `npm install`).
 
-For English + German, enable both languages for spell check in the browser:
-
-- **Chrome/Edge:** Settings → Languages → add *English* and *Deutsch*, then tick
-  "Use this language to check spelling" for each.
-- **Firefox:** right-click the editor → Languages → add the dictionaries, then
-  enable "Check Spelling".
+- Unknown words get a red wavy underline **while the editor is focused** — they
+  disappear when you click away.
+- Click a flagged word for a small menu: pick a suggestion to replace it,
+  **Ignore once** (this browser session), or **Add to dictionary** (remembered
+  in `localStorage` on this device).
+- German noun compounds (`Bahnhof`, `Wochenende`, …) are accepted via a
+  split-into-known-parts heuristic, since the flat word list doesn't contain
+  them all.
 
 ## Voice input
 
@@ -43,9 +45,15 @@ any server, not even Rearview's own. The first use downloads the model weights
 the browser caches them; every use after that is fully offline. WebGPU is used
 when the browser supports it, otherwise WASM (slower).
 
+While recording, the mic control shows a live input-level meter, a timer, and a
+rolling preview of the transcript so you can see your speech is being picked up.
+The final transcript is inserted when you stop.
+
 - English and German are both covered by the default `whisper-base` model.
 - Set `NEXT_PUBLIC_VOICE_MODEL` to change the model (e.g.
   `onnx-community/whisper-small` for better accuracy at a larger download).
+- `NEXT_PUBLIC_VOICE_DEVICE` — `auto` (default; tries WebGPU, falls back to
+  WASM), `webgpu`, or `wasm`.
 - For zero external traffic even on first run, vendor the model files under
   `public/models/…` and point `NEXT_PUBLIC_VOICE_MODEL` at that local path.
 
