@@ -44,7 +44,14 @@ export async function signInAction(
 
   try {
     await auth.api.signInEmail({
-      body: { email: parsed.data.email, password: parsed.data.password },
+      body: {
+        email: parsed.data.email,
+        password: parsed.data.password,
+        // Session-only cookie: the DB session row keeps its expiry, but the
+        // cookie is dropped when the browser fully closes (see implementation
+        // plan Phase 2 / better-auth cookies).
+        rememberMe: false,
+      },
       headers: await headers(),
     });
   } catch {
@@ -69,6 +76,8 @@ export async function signUpAction(
         name: parsed.data.name,
         email: parsed.data.email,
         password: parsed.data.password,
+        // Session-only cookie — see signInAction above.
+        rememberMe: false,
       },
       headers: await headers(),
     });
