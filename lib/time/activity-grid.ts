@@ -70,8 +70,11 @@ export function listActivityYears(entryDates: string[]): number[] {
 
 /**
  * Build one year's contribution calendar. The grid starts on the Sunday on or
- * before Jan 1 and ends on the Saturday on or after Dec 31, so weeks that
- * straddle a year boundary keep their padding days (marked `inYear: false`).
+ * before Jan 1. A past year ends on the Saturday on or after Dec 31, so weeks
+ * that straddle a year boundary keep their padding days (marked
+ * `inYear: false`). The *current* year ends at `today` — the final column is
+ * the week containing `today`, truncated so there are no future cells and a
+ * square is added each day (CLAUDE.md > Overview: no hardcoded range).
  * Leap years and month lengths fall out of the UTC date math.
  */
 export function buildYearGrid(
@@ -85,11 +88,12 @@ export function buildYearGrid(
     Number(today.slice(5, 7)) - 1,
     Number(today.slice(8, 10)),
   );
+  const isCurrentYear = year === yearOf(today);
 
   const jan1 = Date.UTC(year, 0, 1);
-  const dec31 = Date.UTC(year, 11, 31);
+  const lastDay = isCurrentYear ? todayTs : Date.UTC(year, 11, 31);
   const gridStart = startOfWeek(jan1);
-  const gridEnd = startOfWeek(dec31) + 6 * DAY_MS;
+  const gridEnd = startOfWeek(lastDay) + 6 * DAY_MS;
 
   const weeks: ActivityWeek[] = [];
   const monthLabels: { column: number; label: string }[] = [];
@@ -98,6 +102,8 @@ export function buildYearGrid(
   for (let ts = gridStart, column = 0; ts <= gridEnd; column += 1) {
     const week: ActivityWeek = [];
     for (let i = 0; i < 7; i += 1, ts += DAY_MS) {
+      // Current year stops at today: drop the trailing days of today's week.
+      if (isCurrentYear && ts > todayTs) continue;
       const date = format(ts);
       week.push({
         date,
@@ -106,6 +112,7 @@ export function buildYearGrid(
         isFuture: ts > todayTs,
       });
     }
+    if (week.length === 0) break;
     // Label a column by the first day of that column's week that is in-year.
     const anchor = week.find((d) => d.inYear);
     if (anchor) {

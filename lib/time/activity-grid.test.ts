@@ -63,11 +63,19 @@ describe("buildYearGrid", () => {
     expect(cell(grid, "2021-12-31")?.filled).toBe(true);
   });
 
-  it("marks dates after `today` as future", () => {
+  it("stops the current year at today — no future cells, last week holds today", () => {
     const grid = buildYearGrid(2026, [], TODAY);
-    expect(cell(grid, "2026-08-27")?.isFuture).toBe(false);
-    expect(cell(grid, "2026-08-28")?.isFuture).toBe(true);
-    expect(cell(grid, "2026-01-01")?.isFuture).toBe(false);
+    expect(flat(grid).some((d) => d.isFuture)).toBe(false);
+    expect(cell(grid, "2026-08-27")?.inYear).toBe(true);
+    expect(cell(grid, "2026-08-28")).toBeUndefined();
+    expect(grid.weeks.at(-1)?.some((d) => d.date === TODAY)).toBe(true);
+    expect(cell(grid, "2026-01-01")?.inYear).toBe(true);
+  });
+
+  it("still spans a full past year even when it is not the current one", () => {
+    const grid = buildYearGrid(2024, [], TODAY);
+    expect(cell(grid, "2024-01-01")?.inYear).toBe(true);
+    expect(cell(grid, "2024-12-31")?.inYear).toBe(true);
   });
 
   it("emits a month label at column 0 and one per month", () => {

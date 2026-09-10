@@ -51,12 +51,12 @@ test("selecting a year swaps the calendar", async ({ page }) => {
   await expect(page.locator('a[href="/entries?date=2024-07-12"]')).toHaveCount(0);
 });
 
-test("future dates render as dashed, non-clickable cells", async ({ page }) => {
+test("the current year stops at today — no future cells", async ({ page }) => {
   await page.getByRole("button", { name: "2026" }).click();
-  const future = page.locator('span[title*="December 25, 2026"]');
-  await expect(future).toBeVisible();
-  await expect(future).toHaveClass(/border-dashed/);
-  expect(await page.locator('a[href="/entries?date=2026-12-25"]').count()).toBe(0);
+
+  // The grid ends at today, so a late-December cell never renders.
+  expect(await page.locator('span[title*="December 25, 2026"]').count()).toBe(0);
+  await expect(page.locator("span.border-dashed")).toHaveCount(0);
 
   // The corpus dates in 2026 are all present as real cells.
   const filled2026 = page.locator('a.bg-primary[href^="/entries?date=2026-"]');
