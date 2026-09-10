@@ -1,12 +1,15 @@
 "use client";
 import type { JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { useState } from "react";
 
 import { EditorToolbar } from "@/app/components/molecules/EditorToolbar.molecule";
+import { SpellcheckPopover } from "@/app/components/molecules/SpellcheckPopover.molecule";
 import { VoiceInput } from "@/app/components/molecules/VoiceInput.molecule";
 import { editorExtensions } from "@/lib/editor/editor-extensions";
 import { toPlainDocument } from "@/lib/editor/plain-document";
 import { PROSE_CLASS } from "@/lib/editor/prose";
+import { Spellcheck, type SpellcheckWordClick } from "@/lib/editor/spellcheck/extension";
 import { cn } from "@/lib/utils";
 
 type RichTextEditorProps = {
@@ -30,6 +33,10 @@ type RichTextEditorProps = {
  * drag the bottom edge to a custom height (task: "Prevent the editor from
  * stretching the page excessively").
  *
+ * Spell check (`Spellcheck` extension) is fully local: unknown words are
+ * underlined only while the editor is focused, and clicking one opens a
+ * Replace / Ignore / Add menu.
+ *
  * Deliberately domain-agnostic: it knows nothing about journal entries or
  * goals. Callers own persistence and any surrounding form state. Callers clear
  * the editor by unmounting it, not through an imperative signal.
@@ -40,16 +47,21 @@ export const RichTextEditor = ({
   ariaLabel,
   className,
 }: RichTextEditorProps) => {
+  const [flagged, setFlagged] = useState<SpellcheckWordClick | null>(null);
+
   const editor = useEditor({
-    extensions: editorExtensions,
+    extensions: [
+      ...editorExtensions,
+      Spellcheck.configure({ onWordClick: setFlagged }),
+    ],
     content: content ?? "",
     immediatelyRender: false,
     editorProps: {
       attributes: {
         ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
-        // Native, fully-offline spell check (CLAUDE.md > Privacy): the browser
-        // flags misspellings and "Add to dictionary" is the per-profile ignore.
-        spellcheck: "true",
+        // The in-app Spellcheck extension owns this now — turn the browser's own
+        // (blur-persistent, un-dismissable) squiggles off.
+        spellcheck: "false",
         // The surface owns its default height; the wrapper caps and scrolls it.
         class: cn(PROSE_CLASS, "min-h-52 outline-none", className),
       },
@@ -74,6 +86,11 @@ export const RichTextEditor = ({
       <div className="max-h-[60vh] resize-y overflow-y-auto rounded-lg border border-border px-3 py-2 transition-colors focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/30">
         <EditorContent editor={editor} />
       </div>
+      <SpellcheckPopover
+        info={flagged}
+        editor={editor}
+        onClose={() => setFlagged(null)}
+      />
     </div>
   );
 };

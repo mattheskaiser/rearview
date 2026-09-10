@@ -136,3 +136,11 @@
     @apply font-sans;
   }
 }
+
+/* In-app spell check: a flagged word, shown only while the editor is focused. */
+.spellcheck-error {
+  text-decoration: underline wavy var(--destructive);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}

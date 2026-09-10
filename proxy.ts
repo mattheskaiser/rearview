@@ -33,6 +33,6 @@ export const config = {
   // Run on everything except the Better Auth endpoints and static assets
   // (anything with a file extension, plus the Next.js internals).
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest)$).*)",
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|aff|dic)$).*)",
   ],
 };

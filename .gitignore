@@ -41,6 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# spell-check dictionaries — vendored from node_modules by scripts/sync-dictionaries.mjs
+/public/dictionaries
+
 # playwright / e2e
 /test-results
 /playwright-report
