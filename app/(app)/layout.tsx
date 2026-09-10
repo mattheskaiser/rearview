@@ -26,9 +26,10 @@ export default async function AppLayout({
   if (!session) redirect("/login");
 
   return (
-    <div className="flex min-h-screen flex-row">
+    <div className="flex h-screen flex-row overflow-hidden">
       <Sidebar items={navItems} accountEmail={session.email} />
-      <main className="flex-1">{children}</main>
+      {/* Only the page content scrolls; the sidebar stays put. */}
+      <main className="h-full flex-1 overflow-y-auto">{children}</main>
       <Toaster />
     </div>
   );

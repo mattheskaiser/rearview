@@ -18,7 +18,7 @@ export const Sidebar = ({ items, accountEmail }: SidebarProps) => {
   const pathname = usePathname();
 
   return (
-    <nav className="flex w-48 shrink-0 flex-col gap-1 border-r border-border p-3">
+    <nav className="flex h-full w-48 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border p-3">
       <span className="px-2 py-1 text-sm font-semibold tracking-wide">
         Rearview
       </span>
