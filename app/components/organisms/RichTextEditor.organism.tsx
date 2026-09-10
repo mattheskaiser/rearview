@@ -3,6 +3,7 @@ import type { JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 
 import { EditorToolbar } from "@/app/components/molecules/EditorToolbar.molecule";
+import { VoiceInput } from "@/app/components/molecules/VoiceInput.molecule";
 import { editorExtensions } from "@/lib/editor/editor-extensions";
 import { toPlainDocument } from "@/lib/editor/plain-document";
 import { PROSE_CLASS } from "@/lib/editor/prose";
@@ -62,7 +63,14 @@ export const RichTextEditor = ({
 
   return (
     <div className="flex flex-col gap-2">
-      <EditorToolbar editor={editor} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <EditorToolbar editor={editor} />
+        <VoiceInput
+          onTranscript={(text) =>
+            editor.chain().focus().insertContent(text).run()
+          }
+        />
+      </div>
       <div className="max-h-[60vh] resize-y overflow-y-auto rounded-lg border border-border px-3 py-2 transition-colors focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/30">
         <EditorContent editor={editor} />
       </div>

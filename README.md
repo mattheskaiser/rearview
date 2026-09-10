@@ -34,6 +34,21 @@ For English + German, enable both languages for spell check in the browser:
 - **Firefox:** right-click the editor → Languages → add the dictionaries, then
   enable "Check Spelling".
 
+## Voice input
+
+The editor has a mic button that transcribes speech to text. Whisper runs
+**entirely in the browser** in a Web Worker — no audio or transcript is sent to
+any server, not even Rearview's own. The first use downloads the model weights
+(public files, ~40–150 MB depending on the model) from the Hugging Face CDN and
+the browser caches them; every use after that is fully offline. WebGPU is used
+when the browser supports it, otherwise WASM (slower).
+
+- English and German are both covered by the default `whisper-base` model.
+- Set `NEXT_PUBLIC_VOICE_MODEL` to change the model (e.g.
+  `onnx-community/whisper-small` for better accuracy at a larger download).
+- For zero external traffic even on first run, vendor the model files under
+  `public/models/…` and point `NEXT_PUBLIC_VOICE_MODEL` at that local path.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
