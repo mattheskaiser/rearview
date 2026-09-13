@@ -1,22 +1,19 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import {
-  transcribe,
-  type TranscribeLanguage,
-} from "@/lib/editor/transcribe";
+import { startCapture } from "@/lib/editor/whisper-capture";
+import type { TranscribeLanguage } from "@/lib/editor/transcribe-language";
+import { createWhisperSession, type WhisperSession } from "@/lib/editor/whisper-session";
 
-export type VoiceStatus = "idle" | "recording" | "transcribing" | "error";
-
-/** Re-transcribe the buffer at most this often, and only while short. */
-const INTERIM_EVERY_MS = 2500;
-const INTERIM_MAX_MS = 45_000;
+export type VoiceStatus = "idle" | "loading" | "recording" | "transcribing" | "error";
 
 /**
- * Microphone capture + local transcription for the editor. While recording it
- * exposes a live mic `level` and `elapsedMs` so you can see input is being
- * picked up, plus a best-effort `partial` transcript that updates as you speak.
- * On stop it runs a final pass and emits the text. Nothing leaves the machine.
+ * Microphone capture + real-time local transcription for the editor, backed
+ * by whisper.cpp running in a Web Worker (CLAUDE.md > Privacy — nothing
+ * leaves the machine). While recording it exposes a live mic `level` and
+ * `elapsedMs`; `onText` fires every couple of seconds with the next chunk of
+ * recognised speech so it lands in the document as you talk, rather than all
+ * at once when you stop.
  */
 export function useVoiceInput(
   onText: (text: string) => void,
@@ -26,66 +23,78 @@ export function useVoiceInput(
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [partial, setPartial] = useState("");
+  /** Model download progress (0–1) while `status` is "loading"; `null` once
+   *  known to be cached (no download needed) or after loading finishes. */
+  const [loadingProgress, setLoadingProgress] = useState<number | null>(null);
 
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const captureRef = useRef<ReturnType<typeof startCapture> | null>(null);
+  const sessionRef = useRef<WhisperSession | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const rafRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
-  const lastInterimRef = useRef(0);
-  const interimBusyRef = useRef(false);
+  const emittedAnyRef = useRef(false);
   const onTextRef = useRef(onText);
 
   useEffect(() => {
     onTextRef.current = onText;
   }, [onText]);
 
-  const teardown = useCallback(() => {
+  const releaseMic = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
-    recorderRef.current?.stream.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
     void audioCtxRef.current?.close();
     audioCtxRef.current = null;
     setLevel(0);
   }, []);
 
-  useEffect(() => teardown, [teardown]);
-
-  const runInterim = useCallback(
-    async (language_: TranscribeLanguage) => {
-      if (interimBusyRef.current) return;
-      if (Date.now() - startedAtRef.current > INTERIM_MAX_MS) return;
-      if (Date.now() - lastInterimRef.current < INTERIM_EVERY_MS) return;
-      interimBusyRef.current = true;
-      lastInterimRef.current = Date.now();
-      try {
-        const blob = new Blob(chunksRef.current, {
-          type: recorderRef.current?.mimeType,
-        });
-        const text = await transcribe(blob, language_);
-        if (recorderRef.current?.state === "recording" && text) setPartial(text);
-      } catch {
-        // Interim previews are best-effort; the final pass still runs.
-      } finally {
-        interimBusyRef.current = false;
-      }
-    },
-    [],
-  );
+  useEffect(() => releaseMic, [releaseMic]);
 
   const start = useCallback(async () => {
     setError(null);
-    setPartial("");
     setElapsedMs(0);
+    setLoadingProgress(null);
+    emittedAnyRef.current = false;
+    setStatus("loading");
+
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          autoGainControl: true,
+          noiseSuppression: true,
+        },
+      });
     } catch {
       setError("Microphone access was blocked.");
       setStatus("error");
       return;
     }
+    streamRef.current = stream;
+
+    let session: WhisperSession;
+    try {
+      session = await createWhisperSession({
+        language,
+        onText: (text) => {
+          onTextRef.current(emittedAnyRef.current ? ` ${text}` : text);
+          emittedAnyRef.current = true;
+        },
+        onDownloadProgress: (fraction) => setLoadingProgress(fraction),
+      });
+    } catch (err) {
+      releaseMic();
+      setError(
+        err instanceof Error ? err.message : "Could not start the speech model.",
+      );
+      setStatus("error");
+      return;
+    }
+    sessionRef.current = session;
+    setLoadingProgress(null);
 
     const audioCtx = new AudioContext();
     const analyser = audioCtx.createAnalyser();
@@ -93,6 +102,7 @@ export function useVoiceInput(
     audioCtx.createMediaStreamSource(stream).connect(analyser);
     audioCtxRef.current = audioCtx;
     const buffer = new Uint8Array(analyser.frequencyBinCount);
+    startedAtRef.current = Date.now();
 
     const tick = () => {
       analyser.getByteTimeDomainData(buffer);
@@ -103,41 +113,22 @@ export function useVoiceInput(
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    const recorder = new MediaRecorder(stream);
-    chunksRef.current = [];
-    startedAtRef.current = Date.now();
-    lastInterimRef.current = Date.now();
-
-    recorder.addEventListener("dataavailable", (event) => {
-      if (event.data.size > 0) chunksRef.current.push(event.data);
-      if (recorder.state === "recording") void runInterim(language);
-    });
-    recorder.addEventListener("stop", async () => {
-      teardown();
-      setStatus("transcribing");
-      try {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
-        const text = await transcribe(blob, language);
-        if (text) onTextRef.current(text);
-        setPartial("");
-        setStatus("idle");
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Could not transcribe the audio.",
-        );
-        setStatus("error");
-      }
-    });
-
-    recorder.start(2000);
-    recorderRef.current = recorder;
+    captureRef.current = startCapture(stream, session);
     setStatus("recording");
     rafRef.current = requestAnimationFrame(tick);
-  }, [language, runInterim, teardown]);
+  }, [language, releaseMic]);
 
   const stop = useCallback(() => {
-    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-  }, []);
+    if (status !== "recording") return;
+    captureRef.current?.stop();
+    captureRef.current = null;
+    releaseMic();
+    setStatus("transcribing");
 
-  return { status, error, level, elapsedMs, partial, start, stop };
+    const session = sessionRef.current;
+    sessionRef.current = null;
+    void session?.stop().finally(() => setStatus("idle"));
+  }, [status, releaseMic]);
+
+  return { status, error, level, elapsedMs, loadingProgress, start, stop };
 }

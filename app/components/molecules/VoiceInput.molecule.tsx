@@ -2,13 +2,17 @@
 import { Loader2, Mic, Square } from "lucide-react";
 
 import { useVoiceInput } from "@/app/hooks/useVoiceInput";
-import type { TranscribeLanguage } from "@/lib/editor/transcribe";
+import type { TranscribeLanguage } from "@/lib/editor/transcribe-language";
+import { VOICE_MODEL_SIZE_MB } from "@/lib/editor/voice-config";
 import { cn } from "@/lib/utils";
 
 type VoiceInputProps = {
-  /** Called with recognised text once a recording is transcribed. */
+  /**
+   * Called with each chunk of recognised text as it's transcribed — every
+   * few seconds while recording, plus once more for the tail after you stop.
+   */
   onTranscript: (text: string) => void;
-  /** Optional language hint; omitted means auto-detect (EN + DE covered). */
+  /** Optional language hint; omitted means auto-detect (EN + DE + ES covered). */
   language?: TranscribeLanguage;
 };
 
@@ -20,15 +24,20 @@ const formatClock = (ms: number) => {
 };
 
 /**
- * Mic control for the editor toolbar. Speech recognition runs locally in a Web
- * Worker (CLAUDE.md > Privacy). While recording it shows a live input meter, a
- * timer, and a rolling preview of the transcript so you can see you are being
- * heard. The first use downloads the model weights (public files).
+ * Mic control for the editor toolbar. Speech recognition runs locally via
+ * whisper.cpp compiled to WebAssembly, in a Web Worker (CLAUDE.md > Privacy).
+ * While recording it shows a live input meter and timer, and `onTranscript`
+ * fires every couple of seconds with the next chunk of text so it lands in
+ * the document as you speak. The first use downloads the model weights
+ * (public files, then cached in IndexedDB).
  */
 export const VoiceInput = ({ onTranscript, language }: VoiceInputProps) => {
-  const { status, error, level, elapsedMs, partial, start, stop } =
-    useVoiceInput(onTranscript, language ?? null);
+  const { status, error, level, elapsedMs, loadingProgress, start, stop } = useVoiceInput(
+    onTranscript,
+    language ?? null,
+  );
   const recording = status === "recording";
+  const loading = status === "loading";
   const transcribing = status === "transcribing";
 
   return (
@@ -51,7 +60,7 @@ export const VoiceInput = ({ onTranscript, language }: VoiceInputProps) => {
           aria-label={recording ? "Stop recording" : "Start voice input"}
           aria-pressed={recording}
           onClick={recording ? stop : start}
-          disabled={transcribing}
+          disabled={loading || transcribing}
           className={cn(
             "inline-flex size-8 cursor-pointer items-center justify-center rounded-md border border-border transition-colors disabled:cursor-not-allowed disabled:opacity-60",
             recording
@@ -59,7 +68,7 @@ export const VoiceInput = ({ onTranscript, language }: VoiceInputProps) => {
               : "text-foreground hover:bg-secondary/60",
           )}
         >
-          {transcribing ? (
+          {loading || transcribing ? (
             <Loader2 className="size-4 animate-spin" />
           ) : recording ? (
             <Square className="size-4" />
@@ -69,13 +78,15 @@ export const VoiceInput = ({ onTranscript, language }: VoiceInputProps) => {
         </button>
       </div>
 
+      {loading ? (
+        <span className="text-xs text-muted-foreground">
+          {loadingProgress != null
+            ? `Downloading speech model… ${Math.round(loadingProgress * 100)}%`
+            : `Loading speech model (~${VOICE_MODEL_SIZE_MB} MB the first time)…`}
+        </span>
+      ) : null}
       {transcribing ? (
         <span className="text-xs text-muted-foreground">Transcribing…</span>
-      ) : null}
-      {recording && partial ? (
-        <p className="max-w-xs text-right text-xs text-muted-foreground italic line-clamp-2">
-          {partial}
-        </p>
       ) : null}
       {error ? (
         <span role="alert" className="text-xs text-destructive">

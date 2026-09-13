@@ -38,24 +38,37 @@ dictionaries, vendored into `public/dictionaries/` by
 
 ## Voice input
 
-The editor has a mic button that transcribes speech to text. Whisper runs
-**entirely in the browser** in a Web Worker — no audio or transcript is sent to
-any server, not even Rearview's own. The first use downloads the model weights
-(public files, ~40–150 MB depending on the model) from the Hugging Face CDN and
-the browser caches them; every use after that is fully offline. WebGPU is used
-when the browser supports it, otherwise WASM (slower).
+The editor has a mic button for real-time dictation, powered by
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp) compiled to
+WebAssembly — the same official browser build as its `examples/stream.wasm`
+demo (vendored at `public/whisper/stream.js`), run inside a Web Worker so
+inference never touches the UI thread. No audio or transcript is sent to any
+server, not even Rearview's own.
 
-While recording, the mic control shows a live input-level meter, a timer, and a
-rolling preview of the transcript so you can see your speech is being picked up.
-The final transcript is inserted when you stop.
+Architecturally this is *not* "record a clip, then transcribe it": whisper.cpp
+loads the model once and runs a persistent background thread (a real OS thread,
+via WebAssembly threads + `SharedArrayBuffer`) that continuously transcribes a
+5-second rolling window of audio, decoupled from audio capture. The app just
+keeps handing over fresh microphone PCM every couple of seconds; because
+inference is bounded and never blocks on capture, it can't progressively fall
+behind during long, continuous speech the way a "batch re-transcribe" approach
+would. `onTranscript` fires with each new chunk of recognised text as it's
+produced.
 
-- English and German are both covered by the default `whisper-base` model.
-- Set `NEXT_PUBLIC_VOICE_MODEL` to change the model (e.g.
-  `onnx-community/whisper-small` for better accuracy at a larger download).
-- `NEXT_PUBLIC_VOICE_DEVICE` — `auto` (default; tries WebGPU, falls back to
-  WASM), `webgpu`, or `wasm`.
-- For zero external traffic even on first run, vendor the model files under
-  `public/models/…` and point `NEXT_PUBLIC_VOICE_MODEL` at that local path.
+- The first use downloads the model (public file, cached in **IndexedDB**, not
+  just the HTTP cache) — after that it works fully offline. Set
+  `NEXT_PUBLIC_VOICE_MODEL_URL` to change it; it must be a *multilingual*
+  quantized GGML model (not a `*.en`-suffixed one). The default,
+  `ggml-base-q5_1.bin` (~57 MB), covers English, German, and Spanish. If it's
+  too slow for real time on your hardware, point this at
+  `ggml-tiny-q5_1.bin` (~30 MB) instead — smaller and faster, less accurate.
+- Requires the app to be served **cross-origin isolated** (`next.config.ts`
+  sets `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: credentialless`) so the browser allows
+  `SharedArrayBuffer`. This applies to the whole app, not just the editor.
+- While recording, the mic control shows a live input-level meter and a timer.
+- whisper.cpp is MIT-licensed; the vendored build is its own official compiled
+  output, unmodified.
 
 ## Learn More
 

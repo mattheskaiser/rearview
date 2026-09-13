@@ -34,6 +34,8 @@ const eslintConfig = defineConfig([
     "e2e/artifacts/**",
     "playwright-report/**",
     "test-results/**",
+    // Vendored, unmodified official whisper.cpp WASM build — not our source.
+    "public/whisper/**",
   ]),
 ]);
 
