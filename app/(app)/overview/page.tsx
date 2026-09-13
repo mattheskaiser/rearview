@@ -20,6 +20,7 @@ export default async function OverviewPage() {
       goalsContent={overview.goalsContent}
       entryDates={overview.entryDates}
       today={overview.today}
+      lastBackup={overview.lastBackup}
     />
   );
 }

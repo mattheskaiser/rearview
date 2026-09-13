@@ -131,6 +131,18 @@ export function listEntriesForYear(
   });
 }
 
+/**
+ * Every entry for `userId` with its full content — feeds a manual backup
+ * export. Unlike `listEntriesForYear` this is not scoped to one calendar
+ * year, since a backup snapshot must cover the whole journal.
+ */
+export function listAllEntriesForUser(userId: string): Promise<JournalEntry[]> {
+  return prisma.journalEntry.findMany({
+    where: { userId },
+    orderBy: { journalDate: "asc" },
+  });
+}
+
 /** Every date this user has an entry, as `YYYY-MM-DD` ascending — feeds the activity map. */
 export async function listEntryDates(userId: string): Promise<string[]> {
   const rows = await prisma.journalEntry.findMany({

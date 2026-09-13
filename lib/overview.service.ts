@@ -3,6 +3,7 @@ import "server-only";
 import type { JSONContent } from "@tiptap/core";
 import type { Prisma } from "@prisma/client";
 
+import { getLastBackup, type BackupSummary } from "@/lib/backup.service";
 import { getGoals, upsertGoals } from "@/lib/db/goals";
 import { listEntryDates } from "@/lib/db/journal";
 import { env } from "@/lib/env";
@@ -34,6 +35,8 @@ export type OverviewData = {
   entryDates: string[];
   /** Today's calendar day in the host timezone, `YYYY-MM-DD`. */
   today: string;
+  /** Most recent manual backup, or null if one has never run. */
+  lastBackup: BackupSummary | null;
 };
 
 /** A stored `content` value is only meaningful once it's a real `doc` node. */
@@ -55,11 +58,12 @@ export async function getOverviewData(
   userId: string,
   userName?: string,
 ): Promise<OverviewData> {
-  const [goalsContent, entryDates] = await Promise.all([
+  const [goalsContent, entryDates, lastBackup] = await Promise.all([
     getGoals(userId)
       .then((row) => toDoc(row.content))
       .catch(() => null),
     listEntryDates(userId).catch(() => [] as string[]),
+    getLastBackup(userId).catch(() => null),
   ]);
 
   return {
@@ -68,6 +72,7 @@ export async function getOverviewData(
     goalsContent,
     entryDates,
     today: zonedTodayString(),
+    lastBackup,
   };
 }
 

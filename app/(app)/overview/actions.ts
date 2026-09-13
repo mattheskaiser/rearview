@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireUserId } from "@/lib/auth/session";
+import { runBackup, type RunBackupResult } from "@/lib/backup.service";
 import { saveGoals, type SaveGoalsResult } from "@/lib/overview.service";
 
 export type SaveGoalsInput = {
@@ -21,6 +22,19 @@ export async function saveGoalsAction(
 ): Promise<SaveGoalsResult> {
   const userId = await requireUserId();
   const result = await saveGoals(userId, input);
+  if (result.ok) revalidatePath("/overview");
+  return result;
+}
+
+/**
+ * Server action behind the Overview page's manual "Back up now" button.
+ * Snapshots journal entries, Memories and Current Goals to a local file
+ * (lib/backup.service.ts) so the user can save recent work before trying
+ * something risky.
+ */
+export async function triggerBackupAction(): Promise<RunBackupResult> {
+  const userId = await requireUserId();
+  const result = await runBackup(userId);
   if (result.ok) revalidatePath("/overview");
   return result;
 }

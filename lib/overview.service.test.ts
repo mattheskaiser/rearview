@@ -22,9 +22,11 @@ const goalsDb = vi.hoisted(() => ({
   upsertGoals: vi.fn(),
 }));
 const journalDb = vi.hoisted(() => ({ listEntryDates: vi.fn() }));
+const backupService = vi.hoisted(() => ({ getLastBackup: vi.fn() }));
 
 vi.mock("@/lib/db/goals", () => goalsDb);
 vi.mock("@/lib/db/journal", () => journalDb);
+vi.mock("@/lib/backup.service", () => backupService);
 
 import { getOverviewData, saveGoals } from "@/lib/overview.service";
 import { MAX_GOALS_LENGTH } from "@/lib/validation/goals";
@@ -38,12 +40,20 @@ const doc = (text: string) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  backupService.getLastBackup.mockResolvedValue(null);
 });
 
 describe("getOverviewData", () => {
   it("assembles the greeting, goals document, entry dates and today for the user", async () => {
     goalsDb.getGoals.mockResolvedValue({ content: doc("Ship Phase 6") });
     journalDb.listEntryDates.mockResolvedValue(["2026-08-01", "2026-08-27"]);
+    const lastBackup = {
+      createdAt: "2026-08-27T12:00:00.000Z",
+      formattedCreatedAt: "Aug 27, 2026, 12:00 PM",
+      entryCount: 2,
+      memoryCount: 1,
+    };
+    backupService.getLastBackup.mockResolvedValue(lastBackup);
 
     await expect(getOverviewData(USER, "Matthes")).resolves.toEqual({
       name: "Matthes",
@@ -51,9 +61,20 @@ describe("getOverviewData", () => {
       goalsContent: doc("Ship Phase 6"),
       entryDates: ["2026-08-01", "2026-08-27"],
       today: "2026-08-27",
+      lastBackup,
     });
     expect(goalsDb.getGoals).toHaveBeenCalledWith(USER);
     expect(journalDb.listEntryDates).toHaveBeenCalledWith(USER);
+    expect(backupService.getLastBackup).toHaveBeenCalledWith(USER);
+  });
+
+  it("degrades to no backup when the backup lookup fails", async () => {
+    goalsDb.getGoals.mockResolvedValue({ content: {} });
+    journalDb.listEntryDates.mockResolvedValue([]);
+    backupService.getLastBackup.mockRejectedValue(new Error("db down"));
+
+    const data = await getOverviewData(USER, "Matthes");
+    expect(data.lastBackup).toBeNull();
   });
 
   it("falls back to the configured name when the account has none", async () => {

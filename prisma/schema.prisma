@@ -117,6 +117,24 @@ model MemoryEntry {
   @@index([memoryId])
 }
 
+model Backup {
+  // One row per manual backup run. The full snapshot (entries, memories,
+  // current goals) is stored in `content` — deliberately in Neon rather than a
+  // local file, so a lost/broken laptop doesn't take the backups with it. Only
+  // the most recent few rows per user are kept (lib/backup.service.ts prunes
+  // older ones) since each snapshot holds the full journal text.
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  content     Json
+  entryCount  Int
+  memoryCount Int
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
 model CurrentGoals {
   // One row per user (was a global singleton at id "singleton" pre-auth; that
   // row is adopted by the first account during the auth migration).
@@ -154,6 +172,7 @@ model User {
   journalEntries JournalEntry[]
   memories       Memory[]
   currentGoals   CurrentGoals?
+  backups        Backup[]
 }
 
 model Session {
