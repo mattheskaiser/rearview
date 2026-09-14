@@ -18,7 +18,9 @@
     "postinstall": "prisma generate && node scripts/sync-dictionaries.mjs",
     "prisma:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "db:reset:guarded": "node scripts/guard-destructive-db.mjs -- prisma migrate reset",
+    "db:restore-backup": "node scripts/restore-backup.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

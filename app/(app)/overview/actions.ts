@@ -28,9 +28,10 @@ export async function saveGoalsAction(
 
 /**
  * Server action behind the Overview page's manual "Back up now" button.
- * Snapshots journal entries, Memories and Current Goals to a local file
- * (lib/backup.service.ts) so the user can save recent work before trying
- * something risky.
+ * Snapshots journal entries, Memories and Current Goals into the `Backup`
+ * table in Postgres/Neon (lib/backup.service.ts) so the user can save recent
+ * work before trying something risky. See docs/backup-recovery.md for what's
+ * (and isn't) covered and how to restore one of these snapshots.
  */
 export async function triggerBackupAction(): Promise<RunBackupResult> {
   const userId = await requireUserId();
