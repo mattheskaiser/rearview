@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
+import {
+  runPatternAnalysis,
+  type PatternAnalysisOutcome,
+} from "@/lib/ai/pattern-analysis.service";
 import { requireUserId } from "@/lib/auth/session";
 import {
   removeMemory,
@@ -31,6 +35,23 @@ export async function retrieveEvidenceAction(
 ): Promise<RetrieveEvidenceResult> {
   const userId = await requireUserId();
   return retrieveEvidence(userId, question, limit);
+}
+
+/**
+ * "Find patterns" mode: broad, time-diverse retrieval + synthesis across the
+ * user's whole journal history, rather than a single grounded answer. A
+ * single request/response (not a stream) — map-reduce synthesis takes a bit
+ * longer than a single-question answer, and the result is structured, not a
+ * token feed. See lib/ai/pattern-analysis.service.
+ */
+export async function patternAnalysisAction(
+  question: unknown,
+): Promise<PatternAnalysisOutcome> {
+  const userId = await requireUserId();
+  if (typeof question !== "string" || question.trim().length === 0) {
+    return { ok: false, error: "Please enter a question." };
+  }
+  return runPatternAnalysis(userId, question.trim());
 }
 
 export type SaveMemoryActionInput = {
