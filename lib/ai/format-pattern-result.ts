@@ -19,6 +19,9 @@ export function formatPatternResultAsMarkdown(
       lines.push(`*Counterexample:* ${item.counterexamples}`);
     }
     lines.push(`*Confidence:* ${item.confidence}`);
+    if (item.suggestion) {
+      lines.push(`*Something to try:* ${item.suggestion}`);
+    }
     return lines.join("\n\n");
   });
 

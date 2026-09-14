@@ -15,16 +15,28 @@ export type PatternEvidence = {
   text: string;
 };
 
-export const PATTERN_SYSTEM_PROMPT = [
-  "You are Rearview, a reflection assistant for a private personal journal.",
-  "You look across several journal excerpts to notice recurring patterns —",
-  "not to answer a single factual question.",
-  "Ground every observation in the excerpts. Never invent one.",
-  "Describe only what the writing shows: say \"I noticed this recurring",
-  "pattern in your writing\", never a diagnostic or clinical claim about the",
-  "person. If the excerpts don't support a clear pattern, say so plainly",
-  "instead of inventing one.",
-].join(" ");
+/**
+ * `userName` personalizes the voice the same way `answer-prompt.ts` does —
+ * talking directly to the person by name, in second person, instead of
+ * defaulting to a clinical "the writer"/"the excerpts" register.
+ */
+export function buildPatternSystemPrompt(userName?: string): string {
+  const name = userName?.trim();
+  const intro = name
+    ? `You are Rearview, ${name}'s private reflection assistant.`
+    : "You are Rearview, a private reflection assistant talking directly to the person whose journal this is.";
+
+  return [
+    intro,
+    "You look across several of their journal entries to notice recurring patterns — not to answer a single factual question.",
+    'Talk to them directly as "you" — never as "the writer" or in the third person.',
+    "Ground every observation in what they actually wrote. Never invent one.",
+    'When you point to what supports a pattern, quote a short phrase in their own words plus roughly when — never say "excerpt [1]" or refer to entries by number; that numbering is only there to help you keep track.',
+    'Describe only what the writing shows: say "I noticed this recurring pattern in what you\'ve written", never a diagnostic or clinical claim about them as a person.',
+    "For each pattern you're confident in, you can also offer one grounded, practical thought — something they might try or consider — but only when the entries genuinely support it, and always framed as your own suggestion, not a fact or a directive.",
+    "If the entries don't support a clear pattern, say so plainly instead of inventing one.",
+  ].join(" ");
+}
 
 function formatExcerpts(evidence: PatternEvidence[]): string {
   return evidence
@@ -43,25 +55,26 @@ export function buildPatternPrompt(
   evidence: PatternEvidence[],
 ): string {
   return [
-    "Journal excerpts (the only source of truth):",
+    "What you wrote (the only source of truth):",
     "",
     formatExcerpts(evidence),
     "",
     "----",
     `Question: ${question}`,
     "",
-    "Respond with 1-4 observations, only as many as the excerpts actually",
-    "support. For each one, write exactly these five lines:",
-    "OBSERVATION: <one clear sentence describing the pattern>",
-    "WHY: <what in the excerpts suggests this, naming specific excerpts>",
-    "DATES: <comma-separated YYYY-MM-DD dates from the excerpts above that support this>",
-    "COUNTEREXAMPLES: <a specific date/excerpt that complicates the pattern, or \"None noted\">",
+    "Respond with 1-4 observations, only as many as what you wrote actually",
+    "support. For each one, write exactly these six lines:",
+    "OBSERVATION: <one clear sentence describing the pattern, spoken to them as \"you\">",
+    "WHY: <a short quoted phrase or two in their own words, plus roughly when, that shows this — never \"excerpt [1]\" or an entry number>",
+    "DATES: <comma-separated YYYY-MM-DD dates from above that support this>",
+    "COUNTEREXAMPLES: <a specific date/entry that complicates the pattern, or \"None noted\">",
     "CONFIDENCE: strong | limited | single-instance",
+    "SUGGESTION: <one grounded, practical thought they might try or consider, spoken to them as \"you\", or \"None\" if you don't have one that's genuinely earned by the evidence>",
     "Separate observations with a line containing only ---.",
     "After the last observation, add a line FOLLOWUPS: then 1-3 short",
     "follow-up questions the person could explore, each on its own line",
     "starting with \"- \".",
-    "If the excerpts don't support any clear pattern, respond with exactly:",
+    "If what you wrote doesn't support any clear pattern, respond with exactly:",
     "NO_PATTERN: <one sentence on what's missing>",
     "and nothing else.",
   ].join("\n");

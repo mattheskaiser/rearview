@@ -34,7 +34,7 @@ export type RetrievalResult = {
   entryDates: string[];
 };
 
-export const DEFAULT_RESULT_LIMIT = 6;
+export const DEFAULT_RESULT_LIMIT = 12;
 export const CANDIDATE_MULTIPLIER = 4;
 export const MAX_CHUNKS_PER_ENTRY = 2;
 

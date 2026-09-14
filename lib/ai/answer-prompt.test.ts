@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ANSWER_SYSTEM_PROMPT, buildAnswerPrompt } from "@/lib/ai/answer-prompt";
+import { buildAnswerSystemPrompt, buildAnswerPrompt } from "@/lib/ai/answer-prompt";
 
 const evidence = [
   { journalDate: "2022-03-04", text: "Felt uncertain about the new role." },
@@ -23,9 +23,9 @@ describe("buildAnswerPrompt", () => {
     );
   });
 
-  it("instructs the model to answer only from the excerpts", () => {
+  it("instructs the model not to go beyond what's written", () => {
     expect(buildAnswerPrompt("q", evidence).toLowerCase()).toContain(
-      "only the excerpts",
+      "don't go beyond what they show",
     );
   });
 
@@ -36,14 +36,29 @@ describe("buildAnswerPrompt", () => {
   });
 });
 
-describe("ANSWER_SYSTEM_PROMPT", () => {
-  it("frames journal excerpts as the source of truth and forbids fabrication", () => {
-    const text = ANSWER_SYSTEM_PROMPT.toLowerCase();
+describe("buildAnswerSystemPrompt", () => {
+  it("frames the journal as the source of truth and forbids fabrication", () => {
+    const text = buildAnswerSystemPrompt().toLowerCase();
     expect(text).toContain("source of truth");
     expect(text).toContain("never invent");
   });
 
   it("tells the model to communicate uncertainty when evidence is thin", () => {
-    expect(ANSWER_SYSTEM_PROMPT.toLowerCase()).toContain("what is missing");
+    expect(buildAnswerSystemPrompt().toLowerCase()).toContain("what's missing");
+  });
+
+  it("addresses the reader directly and bans third-person/clinical framing", () => {
+    const text = buildAnswerSystemPrompt().toLowerCase();
+    expect(text).toContain('as "you"');
+    expect(text).toContain("the writer");
+  });
+
+  it("personalizes the intro when a user name is given", () => {
+    expect(buildAnswerSystemPrompt("Matthes")).toContain("Matthes's private reflection assistant");
+  });
+
+  it("allows a grounded observation as long as it's marked as the model's own read", () => {
+    const text = buildAnswerSystemPrompt().toLowerCase();
+    expect(text).toContain("own read");
   });
 });

@@ -20,8 +20,8 @@ const NO_EVIDENCE =
 const OLLAMA_DOWN = OLLAMA_DOWN_MESSAGE;
 const GENERIC = "Something went wrong. Please try again.";
 
-export const DEFAULT_EVIDENCE_LIMIT = 6;
-export const MAX_EVIDENCE_LIMIT = 15;
+export const DEFAULT_EVIDENCE_LIMIT = 12;
+export const MAX_EVIDENCE_LIMIT = 24;
 
 /** Clamp a client-supplied evidence limit into a bounded range. */
 function normalizeLimit(raw: unknown): number {
@@ -78,6 +78,7 @@ export async function retrieveEvidence(
 export async function* streamReflection(
   userId: string,
   rawQuestion: unknown,
+  userName?: string,
   signal?: AbortSignal,
   rawLimit?: unknown,
 ): AsyncGenerator<ReflectionStreamEvent> {
@@ -122,7 +123,7 @@ export async function* streamReflection(
     text: chunk.text,
   }));
 
-  for await (const event of streamAnswer(question, evidence, signal)) {
+  for await (const event of streamAnswer(question, evidence, userName, signal)) {
     if (event.type === "token") yield { type: "token", value: event.value };
     else if (event.type === "done") yield { type: "done" };
     else if (event.type === "aborted") return;

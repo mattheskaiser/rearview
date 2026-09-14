@@ -6,7 +6,7 @@ import {
   runPatternAnalysis,
   type PatternAnalysisOutcome,
 } from "@/lib/ai/pattern-analysis.service";
-import { requireUserId } from "@/lib/auth/session";
+import { requireSession, requireUserId } from "@/lib/auth/session";
 import {
   removeMemory,
   saveMemory,
@@ -47,11 +47,11 @@ export async function retrieveEvidenceAction(
 export async function patternAnalysisAction(
   question: unknown,
 ): Promise<PatternAnalysisOutcome> {
-  const userId = await requireUserId();
+  const { userId, name } = await requireSession();
   if (typeof question !== "string" || question.trim().length === 0) {
     return { ok: false, error: "Please enter a question." };
   }
-  return runPatternAnalysis(userId, question.trim());
+  return runPatternAnalysis(userId, question.trim(), name);
 }
 
 export type SaveMemoryActionInput = {

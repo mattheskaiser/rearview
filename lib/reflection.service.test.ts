@@ -77,7 +77,7 @@ describe("retrieveEvidence", () => {
     expect(retrieval.retrieve).not.toHaveBeenCalled();
   });
 
-  it("returns one dated, preview-trimmed card per distinct entry", async () => {
+  it("returns one dated card per distinct entry", async () => {
     retrieval.retrieve.mockResolvedValue({
       chunks: [
         chunk("2024-01-19", "a".repeat(400)),
@@ -95,9 +95,6 @@ describe("retrieveEvidence", () => {
         "2024-01-19",
         "2022-07-23",
       ]);
-      expect(result.evidence[0].preview.length).toBeLessThanOrEqual(151);
-      expect(result.evidence[0].preview.endsWith("…")).toBe(true);
-      expect(result.evidence[1].preview).toBe("short one");
     }
   });
 
@@ -157,7 +154,7 @@ describe("streamReflection", () => {
       {
         type: "evidence",
         evidence: [
-          expect.objectContaining({ date: "2022-03-04", preview: "note" }),
+          expect.objectContaining({ date: "2022-03-04" }),
         ],
       },
       { type: "token", value: "A" },
@@ -166,6 +163,24 @@ describe("streamReflection", () => {
     expect(answer.streamAnswer).toHaveBeenCalledWith(
       "career?",
       [{ journalDate: "2022-03-04", text: "note" }],
+      undefined,
+      undefined,
+    );
+  });
+
+  it("forwards the caller's name through to the answer stream", async () => {
+    retrieval.retrieve.mockResolvedValue({
+      chunks: [chunk("2022-03-04", "note")],
+      entryDates: [],
+    });
+    answer.streamAnswer.mockReturnValue(frames([{ type: "done" }]));
+
+    await drain(streamReflection("u", "career?", "Matthes"));
+
+    expect(answer.streamAnswer).toHaveBeenCalledWith(
+      "career?",
+      [{ journalDate: "2022-03-04", text: "note" }],
+      "Matthes",
       undefined,
     );
   });

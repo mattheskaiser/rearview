@@ -12,6 +12,7 @@ describe("parsePatternResponse", () => {
       "DATES: 2025-01-05, 2025-03-12",
       "COUNTEREXAMPLES: None noted.",
       "CONFIDENCE: strong",
+      "SUGGESTION: Try naming the stress out loud before you reach for a joke.",
       "FOLLOWUPS:",
       "- What would it look like to name the stress directly?",
       "- Does this happen more at work or at home?",
@@ -26,6 +27,7 @@ describe("parsePatternResponse", () => {
         supportingDates: ["2025-01-05", "2025-03-12"],
         counterexamples: null,
         confidence: "strong",
+        suggestion: "Try naming the stress out loud before you reach for a joke.",
       },
     ]);
     expect(result.followUps).toEqual([
@@ -100,6 +102,29 @@ describe("parsePatternResponse", () => {
     expect(parsePatternResponse(raw, VALID_DATES).observations[0].confidence).toBe(
       "limited",
     );
+  });
+
+  it("treats a missing or 'None' SUGGESTION as no suggestion", () => {
+    const withNone = [
+      "OBSERVATION: A pattern.",
+      "WHY: because.",
+      "DATES: 2025-01-05",
+      "COUNTEREXAMPLES: None noted.",
+      "CONFIDENCE: strong",
+      "SUGGESTION: None",
+    ].join("\n");
+    const withoutField = [
+      "OBSERVATION: A pattern.",
+      "WHY: because.",
+      "DATES: 2025-01-05",
+      "COUNTEREXAMPLES: None noted.",
+      "CONFIDENCE: strong",
+    ].join("\n");
+
+    expect(parsePatternResponse(withNone, VALID_DATES).observations[0].suggestion).toBeNull();
+    expect(
+      parsePatternResponse(withoutField, VALID_DATES).observations[0].suggestion,
+    ).toBeNull();
   });
 
   it("returns no observations for an explicit NO_PATTERN response", () => {

@@ -9,16 +9,13 @@ export type Evidence = {
 };
 
 /**
- * Evidence shown on the Memories page before the answer arrives: a dated
- * pointer plus a short preview of what the user wrote. The preview is the
- * matched chunk excerpt (already the whole entry for short entries), trimmed —
- * the user's own content, and already one click away via `date`. Full chunk
- * sets and embeddings still never reach the client.
+ * Evidence shown on the Memories page before the answer arrives: which dated
+ * entries were pulled in, as a link — not a text preview. The answer itself
+ * quotes the relevant phrases inline, so this is just a "sources" strip for
+ * cross-checking; the entry's own content is one click away via `date`. Full
+ * chunk sets and embeddings still never reach the client.
  */
-export type EvidenceCard = Evidence & {
-  /** First ~150 chars of the matched chunk text. */
-  preview: string;
-};
+export type EvidenceCard = Evidence;
 
 /**
  * One frame of a streamed reflection (retrieval-first, then token-by-token).

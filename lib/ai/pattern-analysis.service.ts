@@ -7,7 +7,7 @@ import {
 import {
   buildExtractionPrompt,
   buildPatternPrompt,
-  PATTERN_SYSTEM_PROMPT,
+  buildPatternSystemPrompt,
   type PatternEvidence,
 } from "@/lib/ai/pattern-prompt";
 import { generateCollected } from "@/lib/ai/generate-collected";
@@ -81,13 +81,14 @@ function batchByBudget(
 /** Map stage: compress each batch into one dated candidate-observations summary. */
 async function extractCandidates(
   batches: PatternEvidence[][],
+  systemPrompt: string,
 ): Promise<PatternEvidence[]> {
   const summaries: PatternEvidence[] = [];
   for (const batch of batches) {
     const from = batch[0].journalDate;
     const to = batch[batch.length - 1].journalDate;
     const text = await generateCollected(buildExtractionPrompt(batch), {
-      system: PATTERN_SYSTEM_PROMPT,
+      system: systemPrompt,
       temperature: GENERATION_TEMPERATURE,
     });
     summaries.push({
@@ -101,6 +102,7 @@ async function extractCandidates(
 export async function runPatternAnalysis(
   userId: string,
   question: string,
+  userName?: string,
 ): Promise<PatternAnalysisOutcome> {
   const problem = await ensureOllamaReady(userId, "generation");
   if (problem) return { ok: false, error: problem };
@@ -111,15 +113,16 @@ export async function runPatternAnalysis(
   const evidence = toEvidence(chunks);
   const totalChars = evidence.reduce((sum, item) => sum + item.text.length, 0);
   const validDates = new Set(entryDates);
+  const systemPrompt = buildPatternSystemPrompt(userName);
 
   try {
     const finalEvidence =
       totalChars > SINGLE_PASS_CHAR_BUDGET
-        ? await extractCandidates(batchByBudget(evidence, BATCH_CHAR_BUDGET))
+        ? await extractCandidates(batchByBudget(evidence, BATCH_CHAR_BUDGET), systemPrompt)
         : evidence;
 
     const raw = await generateCollected(buildPatternPrompt(question, finalEvidence), {
-      system: PATTERN_SYSTEM_PROMPT,
+      system: systemPrompt,
       temperature: GENERATION_TEMPERATURE,
     });
 

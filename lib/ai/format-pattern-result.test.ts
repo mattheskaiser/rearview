@@ -14,6 +14,7 @@ const result: PatternAnalysisResult = {
       supportingDates: ["2025-01-05", "2025-03-12"],
       counterexamples: null,
       confidence: "strong",
+      suggestion: "Try naming the stress before joking about it.",
     },
     {
       observation: "A second pattern.",
@@ -21,6 +22,7 @@ const result: PatternAnalysisResult = {
       supportingDates: ["2025-03-12", "2025-06-01"],
       counterexamples: "On 2025-06-01 you addressed it directly instead.",
       confidence: "limited",
+      suggestion: null,
     },
   ],
   followUps: ["What would naming it directly look like?"],
@@ -34,6 +36,7 @@ describe("formatPatternResultAsMarkdown", () => {
     expect(markdown).toContain("2025-01-05, 2025-03-12");
     expect(markdown).toContain("Confidence:* strong");
     expect(markdown).toContain("Counterexample:* On 2025-06-01");
+    expect(markdown).toContain("Something to try:* Try naming the stress before joking about it.");
     expect(markdown).toContain("Questions to explore");
     expect(markdown).toContain("What would naming it directly look like?");
   });
@@ -42,6 +45,13 @@ describe("formatPatternResultAsMarkdown", () => {
     const markdown = formatPatternResultAsMarkdown(result);
     const firstBlock = markdown.split("\n\n---\n\n")[0];
     expect(firstBlock).not.toContain("Counterexample");
+  });
+
+  it("omits the suggestion line when there is none", () => {
+    const markdown = formatPatternResultAsMarkdown(result);
+    const blocks = markdown.split("\n\n---\n\n");
+    const secondBlock = blocks[1];
+    expect(secondBlock).not.toContain("Something to try");
   });
 
   it("omits the follow-ups section when there are none", () => {

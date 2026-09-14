@@ -19,6 +19,7 @@ export type PatternObservation = {
   supportingDates: string[];
   counterexamples: string | null;
   confidence: Confidence;
+  suggestion: string | null;
 };
 
 export type PatternAnalysisResult = {
@@ -71,12 +72,17 @@ function parseObservationBlock(
     ? (confidenceRaw as Confidence)
     : "limited";
 
+  const suggestionRaw = matchField(block, "SUGGESTION");
+  const suggestion =
+    suggestionRaw && !/^none\.?$/i.test(suggestionRaw) ? suggestionRaw : null;
+
   return {
     observation,
     why: matchField(block, "WHY") ?? "",
     supportingDates,
     counterexamples,
     confidence,
+    suggestion,
   };
 }
 

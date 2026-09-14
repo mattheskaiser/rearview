@@ -17,9 +17,9 @@ import type { EvidenceCard } from "@/lib/types/memory";
  * run server-side; this hook tracks phase and accumulates the token feed.
  */
 
-const START_LIMIT = 6;
+const START_LIMIT = 12;
 const LIMIT_STEP = 6;
-const MAX_LIMIT = 15;
+const MAX_LIMIT = 24;
 
 export type ReflectionPhase =
   | "idle"

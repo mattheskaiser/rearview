@@ -67,6 +67,15 @@ describe("generateAnswer", () => {
     expect(options?.system?.toLowerCase()).toContain("source of truth");
   });
 
+  it("personalizes the system prompt with the caller's name when given", async () => {
+    generateMock.mockResolvedValue("answer");
+
+    await generateAnswer("how did I feel?", evidence, "Matthes");
+
+    const [, options] = generateMock.mock.calls[0];
+    expect(options?.system).toContain("Matthes's private reflection assistant");
+  });
+
   it("reports ollama-unavailable when Ollama cannot be reached", async () => {
     generateMock.mockRejectedValue(new OllamaUnavailableError("down"));
 
@@ -114,6 +123,15 @@ describe("streamAnswer", () => {
     ]);
     const [, options] = streamMock.mock.calls[0];
     expect(options?.system?.toLowerCase()).toContain("source of truth");
+  });
+
+  it("personalizes the system prompt with the caller's name when given", async () => {
+    streamMock.mockReturnValue(tokens(["hi"]));
+
+    await drain(streamAnswer("how did I feel?", evidence, "Matthes"));
+
+    const [, options] = streamMock.mock.calls[0];
+    expect(options?.system).toContain("Matthes's private reflection assistant");
   });
 
   it("reports generation-failed when no token ever arrives", async () => {

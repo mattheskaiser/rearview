@@ -1,8 +1,8 @@
 import "server-only";
 
 import {
-  ANSWER_SYSTEM_PROMPT,
   buildAnswerPrompt,
+  buildAnswerSystemPrompt,
   type PromptEvidence,
 } from "@/lib/ai/answer-prompt";
 import {
@@ -48,12 +48,13 @@ const STALL_TIMEOUT_MS = 60_000;
 export async function generateAnswer(
   question: string,
   evidence: PromptEvidence[],
+  userName?: string,
 ): Promise<AnswerResult> {
   if (evidence.length === 0) return { ok: false, reason: "no-evidence" };
 
   try {
     const raw = await generate(buildAnswerPrompt(question, evidence), {
-      system: ANSWER_SYSTEM_PROMPT,
+      system: buildAnswerSystemPrompt(userName),
       temperature: GENERATION_TEMPERATURE,
     });
     const answer = raw.trim();
@@ -78,6 +79,7 @@ export async function generateAnswer(
 export async function* streamAnswer(
   question: string,
   evidence: PromptEvidence[],
+  userName?: string,
   signal?: AbortSignal,
 ): AsyncGenerator<AnswerStreamEvent> {
   if (evidence.length === 0) {
@@ -91,7 +93,7 @@ export async function* streamAnswer(
   else signal?.addEventListener("abort", relayAbort, { once: true });
 
   const iterator = generateStream(buildAnswerPrompt(question, evidence), {
-    system: ANSWER_SYSTEM_PROMPT,
+    system: buildAnswerSystemPrompt(userName),
     temperature: GENERATION_TEMPERATURE,
     signal: controller.signal,
   })[Symbol.asyncIterator]();

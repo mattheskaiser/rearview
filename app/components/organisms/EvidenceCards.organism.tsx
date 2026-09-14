@@ -1,4 +1,4 @@
-import { EvidenceCard } from "@/app/components/molecules/EvidenceCard.molecule";
+import { SourceChip } from "@/app/components/atoms/SourceChip.atom";
 import { Button } from "@/components/ui/button";
 import type { EvidenceCard as EvidenceCardData } from "@/lib/types/memory";
 
@@ -10,9 +10,11 @@ type EvidenceCardsProps = {
 };
 
 /**
- * Journal entries behind an answer — rendered as soon as retrieval returns,
- * before the answer streams. "Show more entries" pulls a wider set (a larger
- * retrieval limit) without re-triggering the answer.
+ * Which journal entries informed an answer — just the dates, as small links,
+ * not a preview of their text. The answer itself quotes the relevant phrases
+ * inline, so this is just a "sources" strip for cross-checking, not a second
+ * copy of the journal content. "Show more entries" pulls a wider set (a
+ * larger retrieval limit) without re-triggering the answer.
  */
 export const EvidenceCards = ({
   evidence,
@@ -27,14 +29,9 @@ export const EvidenceCards = ({
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground">
         From your journal
       </h3>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="flex flex-wrap gap-2">
         {evidence.map((item) => (
-          <EvidenceCard
-            key={item.date}
-            date={item.date}
-            label={item.label}
-            preview={item.preview}
-          />
+          <SourceChip key={item.date} date={item.date} label={item.label} />
         ))}
       </div>
       {canShowMore ? (

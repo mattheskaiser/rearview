@@ -31,7 +31,13 @@ export async function POST(request: Request) {
   };
 
   const stream = ndjsonStream(
-    streamReflection(session.userId, body.question, request.signal, body.limit),
+    streamReflection(
+      session.userId,
+      body.question,
+      session.name,
+      request.signal,
+      body.limit,
+    ),
   );
 
   return new Response(stream, {
