@@ -1,9 +1,10 @@
 import "server-only";
 
 import { streamAnswer } from "@/lib/ai/answer.service";
+import { toEvidenceCards } from "@/lib/ai/evidence-cards";
+import { ensureOllamaReady, OLLAMA_DOWN_MESSAGE } from "@/lib/ai/ollama-readiness.service";
 import { OllamaUnavailableError } from "@/lib/ai/ollama.service";
 import { retrieve } from "@/lib/retrieval.service";
-import { formatJournalDateLabel } from "@/lib/time/journal-date";
 import type { EvidenceCard, ReflectionStreamEvent } from "@/lib/types/memory";
 import { questionSchema } from "@/lib/validation/memory";
 
@@ -16,36 +17,11 @@ import { questionSchema } from "@/lib/validation/memory";
 
 const NO_EVIDENCE =
   "No journal entries seem related to that question yet. Try rephrasing, or write more entries.";
-const OLLAMA_DOWN =
-  "The local AI model is not reachable right now. Your journal is unaffected — start Ollama and try again.";
+const OLLAMA_DOWN = OLLAMA_DOWN_MESSAGE;
 const GENERIC = "Something went wrong. Please try again.";
 
-const PREVIEW_CHARS = 150;
 export const DEFAULT_EVIDENCE_LIMIT = 6;
 export const MAX_EVIDENCE_LIMIT = 15;
-
-function toPreview(text: string): string {
-  const clean = text.replace(/\s+/g, " ").trim();
-  return clean.length <= PREVIEW_CHARS
-    ? clean
-    : `${clean.slice(0, PREVIEW_CHARS).trimEnd()}…`;
-}
-
-/** First chunk per distinct journal date → an evidence card, in rerank order. */
-function toCards(
-  chunks: { journalDate: string; text: string }[],
-): EvidenceCard[] {
-  const byDate = new Map<string, EvidenceCard>();
-  for (const chunk of chunks) {
-    if (byDate.has(chunk.journalDate)) continue;
-    byDate.set(chunk.journalDate, {
-      date: chunk.journalDate,
-      label: formatJournalDateLabel(chunk.journalDate),
-      preview: toPreview(chunk.text),
-    });
-  }
-  return [...byDate.values()];
-}
 
 /** Clamp a client-supplied evidence limit into a bounded range. */
 function normalizeLimit(raw: unknown): number {
@@ -78,11 +54,14 @@ export async function retrieveEvidence(
     };
   }
 
+  const problem = await ensureOllamaReady(userId, "embedding");
+  if (problem) return { ok: false, error: problem };
+
   try {
     const { chunks } = await retrieve(userId, parsed.data, {
       limit: normalizeLimit(rawLimit),
     });
-    return { ok: true, question: parsed.data, evidence: toCards(chunks) };
+    return { ok: true, question: parsed.data, evidence: toEvidenceCards(chunks) };
   } catch (error) {
     if (error instanceof OllamaUnavailableError) {
       return { ok: false, error: OLLAMA_DOWN };
@@ -112,6 +91,12 @@ export async function* streamReflection(
   }
   const question = parsed.data;
 
+  const problem = await ensureOllamaReady(userId, "generation");
+  if (problem) {
+    yield { type: "error", error: problem };
+    return;
+  }
+
   let chunks: Awaited<ReturnType<typeof retrieve>>["chunks"];
   try {
     ({ chunks } = await retrieve(userId, question, {
@@ -130,7 +115,7 @@ export async function* streamReflection(
     return;
   }
 
-  yield { type: "evidence", evidence: toCards(chunks) };
+  yield { type: "evidence", evidence: toEvidenceCards(chunks) };
 
   const evidence = chunks.map((chunk) => ({
     journalDate: chunk.journalDate,

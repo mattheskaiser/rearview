@@ -121,6 +121,16 @@ export type DateRange = { from?: Date; to?: Date };
  * date rides along so the retrieval layer can diversify across dates without a
  * second round-trip. Embeddings never leave this module.
  */
+/**
+ * Cap on the vector search itself. The generation stream has a stall
+ * watchdog (lib/ai/answer.service); this is the equivalent guard for a hung
+ * DB query, which would otherwise block a reflection request indefinitely
+ * with no signal at all. `SET LOCAL` requires a transaction — it reverts
+ * automatically at the end of it, so it can never leak onto a pooled
+ * connection's later, unrelated queries.
+ */
+const SEARCH_STATEMENT_TIMEOUT_MS = 10_000;
+
 export async function searchChunksByEmbedding(
   userId: string,
   embedding: number[],
@@ -141,18 +151,21 @@ export async function searchChunksByEmbedding(
     conditions.push(Prisma.sql`e."journalDate" <= ${dateRange.to}`);
   }
 
-  const rows = await prisma.$queryRaw<ChunkMatch[]>(Prisma.sql`
-    SELECT c."entryId"     AS "entryId",
-           e."journalDate" AS "journalDate",
-           c."chunkIndex"  AS "chunkIndex",
-           c."text"        AS "text",
-           (c."embedding" <=> ${literal}::vector) AS "distance"
-    FROM "EntryChunk" c
-    JOIN "JournalEntry" e ON e."id" = c."entryId"
-    WHERE ${Prisma.join(conditions, " AND ")}
-    ORDER BY "distance" ASC
-    LIMIT ${limit}
-  `);
+  const rows = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('statement_timeout', ${String(SEARCH_STATEMENT_TIMEOUT_MS)}, true)`;
+    return tx.$queryRaw<ChunkMatch[]>(Prisma.sql`
+      SELECT c."entryId"     AS "entryId",
+             e."journalDate" AS "journalDate",
+             c."chunkIndex"  AS "chunkIndex",
+             c."text"        AS "text",
+             (c."embedding" <=> ${literal}::vector) AS "distance"
+      FROM "EntryChunk" c
+      JOIN "JournalEntry" e ON e."id" = c."entryId"
+      WHERE ${Prisma.join(conditions, " AND ")}
+      ORDER BY "distance" ASC
+      LIMIT ${limit}
+    `);
+  });
   return rows.map((row) => ({
     ...row,
     chunkIndex: Number(row.chunkIndex),
@@ -173,4 +186,46 @@ export async function getEntryChunkState(
     total: rows.length,
     embedded: rows.filter((row) => row.embeddedAt !== null).length,
   };
+}
+
+export type PendingEmbeddingEntry = {
+  entryId: string;
+  contentText: string;
+  contentHash: string;
+};
+
+/**
+ * Entries for `userId` that `syncEntryEmbeddings` (lib/ai/entry-embeddings.service)
+ * has not finished embedding — either it has never been chunked for its
+ * current revision, or some chunk from that revision is still missing an
+ * embedding (e.g. Ollama was down when the entry was saved). Feeds the
+ * opportunistic backfill in lib/ai/embedding-backfill.service, so a save-time
+ * embedding failure gets a real retry instead of staying unsearchable
+ * forever. Entries with no plain text (nothing embeddable) are excluded —
+ * they can never gain a matching chunk and would otherwise show up on every
+ * call.
+ */
+export async function listEntriesPendingEmbeddingSync(
+  userId: string,
+  limit: number,
+): Promise<PendingEmbeddingEntry[]> {
+  if (limit <= 0) return [];
+  return prisma.$queryRaw<PendingEmbeddingEntry[]>`
+    SELECT e."id" AS "entryId", e."contentText" AS "contentText", e."contentHash" AS "contentHash"
+    FROM "JournalEntry" e
+    WHERE e."userId" = ${userId}
+      AND length(trim(e."contentText")) > 0
+      AND (
+        NOT EXISTS (
+          SELECT 1 FROM "EntryChunk" c
+          WHERE c."entryId" = e."id" AND c."sourceHash" = e."contentHash"
+        )
+        OR EXISTS (
+          SELECT 1 FROM "EntryChunk" c
+          WHERE c."entryId" = e."id" AND c."sourceHash" = e."contentHash" AND c."embeddedAt" IS NULL
+        )
+      )
+    ORDER BY e."journalDate" DESC
+    LIMIT ${limit}
+  `;
 }

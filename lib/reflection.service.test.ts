@@ -15,9 +15,15 @@ vi.mock("@/lib/env", () => ({
 
 const retrieval = vi.hoisted(() => ({ retrieve: vi.fn() }));
 const answer = vi.hoisted(() => ({ streamAnswer: vi.fn() }));
+const readiness = vi.hoisted(() => ({
+  ensureOllamaReady: vi.fn(),
+  OLLAMA_DOWN_MESSAGE:
+    "The local AI model is not reachable right now. Your journal is unaffected — start Ollama and try again.",
+}));
 
 vi.mock("@/lib/retrieval.service", () => retrieval);
 vi.mock("@/lib/ai/answer.service", () => answer);
+vi.mock("@/lib/ai/ollama-readiness.service", () => readiness);
 
 import { OllamaUnavailableError } from "@/lib/ai/ollama.service";
 import {
@@ -44,12 +50,30 @@ async function drain(gen: AsyncGenerator<unknown>): Promise<unknown[]> {
   return out;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  readiness.ensureOllamaReady.mockResolvedValue(null);
+});
 
 describe("retrieveEvidence", () => {
   it("rejects an empty question without retrieving", async () => {
     const result = await retrieveEvidence("u", "   ");
     expect(result.ok).toBe(false);
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("checks readiness for the embedding model and never retrieves when unready", async () => {
+    readiness.ensureOllamaReady.mockResolvedValue(
+      'The "bge-m3" model isn\'t pulled in Ollama. Run `ollama pull bge-m3` and try again.',
+    );
+
+    const result = await retrieveEvidence("u", "q");
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'The "bge-m3" model isn\'t pulled in Ollama. Run `ollama pull bge-m3` and try again.',
+    });
+    expect(readiness.ensureOllamaReady).toHaveBeenCalledWith("u", "embedding");
     expect(retrieval.retrieve).not.toHaveBeenCalled();
   });
 
@@ -87,6 +111,23 @@ describe("retrieveEvidence", () => {
 });
 
 describe("streamReflection", () => {
+  it("checks readiness for the generation model and never retrieves when unready", async () => {
+    readiness.ensureOllamaReady.mockResolvedValue(
+      'The "llama3.1" model isn\'t pulled in Ollama. Run `ollama pull llama3.1` and try again.',
+    );
+
+    const out = await drain(streamReflection("u", "q"));
+
+    expect(out).toEqual([
+      {
+        type: "error",
+        error: 'The "llama3.1" model isn\'t pulled in Ollama. Run `ollama pull llama3.1` and try again.',
+      },
+    ]);
+    expect(readiness.ensureOllamaReady).toHaveBeenCalledWith("u", "generation");
+    expect(retrieval.retrieve).not.toHaveBeenCalled();
+  });
+
   it("emits the NO_EVIDENCE error and never generates when retrieval is empty", async () => {
     retrieval.retrieve.mockResolvedValue({ chunks: [], entryDates: [] });
 
