@@ -6,6 +6,7 @@ import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 
 import { claimOwnerlessRecords } from "@/lib/auth/bootstrap";
+import { AUTH_LOGGER_OPTIONS } from "@/lib/auth/logger-options";
 import {
   canRegister,
   REGISTRATION_CLOSED_MESSAGE,
@@ -39,10 +40,16 @@ export const auth = betterAuth({
   },
 
   session: {
-    // 30-day rolling session, refreshed at most once a day.
-    expiresIn: 60 * 60 * 24 * 30,
-    updateAge: 60 * 60 * 24,
-    cookieCache: { enabled: true, maxAge: 5 * 60 },
+    // 12-hour absolute cap, rolling forward by up to 6h on continued use.
+    // The real day-to-day control is the idle timeout in lib/auth/session.ts
+    // (getCurrentSession), which forces re-auth after ~15 minutes of
+    // inactivity regardless of this window.
+    expiresIn: 60 * 60 * 12,
+    updateAge: 60 * 60 * 6,
+    // Short cache TTL: the idle-timeout check needs a request to actually
+    // reach the DB reasonably often, not serve a stale signed cookie for
+    // several minutes.
+    cookieCache: { enabled: true, maxAge: 60 },
   },
 
   advanced: {
@@ -50,6 +57,8 @@ export const auth = betterAuth({
     // Secure cookies whenever the app is served over https.
     useSecureCookies: env.BETTER_AUTH_URL.startsWith("https://"),
   },
+
+  logger: AUTH_LOGGER_OPTIONS,
 
   databaseHooks: {
     user: {
