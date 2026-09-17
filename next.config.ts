@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  logging: {
+    // Next.js logs Server Function calls with their raw arguments in dev by
+    // default (docs/01-app/03-api-reference/05-config/01-next-config-js/logging.md).
+    // Auth actions take { email, password } directly, so leaving this on
+    // prints plaintext passwords to the terminal on every sign-in.
+    serverFunctions: false
+  },
   async redirects() {
     return [
       {
