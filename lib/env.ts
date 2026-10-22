@@ -36,6 +36,9 @@ const envSchema = z.object({
   // Name used in the Overview greeting. Optional — the greeting falls back to a
   // plain "Hello" when unset. Configuration, not example content.
   REARVIEW_USER_NAME: z.string().trim().min(1).optional(),
+  // Account the terminal composer (`npm run write`) writes to when several
+  // accounts exist. Optional — without it the composer asks which one.
+  REARVIEW_CLI_EMAIL: z.string().trim().min(1).optional(),
 
   // Ollama — local, server side only. All AI (generation + embeddings) runs
   // through this one base URL; journal content never leaves it.
